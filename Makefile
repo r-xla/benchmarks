@@ -7,8 +7,8 @@ PLATFORM ?= linux/amd64
 PROGRESS ?= plain
 GITHUB_PAT_FILE ?= $(HOME)/.github_pat
 
-.PHONY: cpu
-cpu:
+.PHONY: env-cpu
+env-cpu:
 	@echo "Building $(IMAGE_TAG) for $(PLATFORM) using $(DOCKERFILE)"
 	@SECRET_FLAG=""; if [ -f "$(GITHUB_PAT_FILE)" ]; then \
 		echo "Using GitHub PAT from $(GITHUB_PAT_FILE)"; \
