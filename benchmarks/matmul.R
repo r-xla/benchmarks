@@ -16,44 +16,41 @@ bench_matmul <- function(n_matmuls, matrix_size, device) {
 
   Sys.setenv(XLA_FLAGS = paste(c(
     "--xla_cpu_multi_thread_eigen=false",
-    "intra_op_parallelism_threads=1"),
+    "intra_op_parallelism_threads=1",
+    "inter_op_parallelism_threads=1"),
     collapse = " "))
 
-  Sys.setenv(OPENBLAS_NUM_THREADS = "1")
-  Sys.setenv(MKL_NUM_THREADS = "1")
-  Sys.setenv(OMP_NUM_THREADS = "1")
   Sys.setenv(NPROC = "1")
-
 
 
   f_torch <- function(x) {
     for (i in seq_len(n_matmuls)) {
       x <- torch_matmul(x, x)
     }
-    x
+    c(torch_mean(x)$item())
   }
 
   f_anvil <- jit(function(x) {
     y <- x
     for (i in seq_len(n_matmuls)) {
-      y <- nv_matmul(y, x)
+      x <- nv_matmul(x, x)
     }
-    x
+    nv_reduce_sum(x, dim = 1:2)
   })
-
+  
   f_anvil(x_anvil)
 
   bench::mark(
-    f_torch = f_torch(x_torch),
-    f_anvil = f_anvil(x_anvil),
+    f_torch = torch::as_array(f_torch(x_torch)),
+    f_anvil = as_array(f_anvil(x_anvil)),
     check = FALSE,
     memory = FALSE
   )
 }
 
 config <- expand.grid(
-  n_matmuls = c(10, 20, 40, 80, 160, 320, 640, 1280, 2560, 5120),
-  #matrix_size = c(200, 400, 800, 1600),
+  n_matmuls = c(10, 20, 40, 80, 160, 320, 640, 1280, 2560),
+  matrix_size = c(100, 200, 400, 800, 1600),
   matrix_size = 100,
   device = "cpu",
   stringsAsFactors = FALSE
