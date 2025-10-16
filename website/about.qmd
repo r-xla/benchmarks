@@ -2,4 +2,16 @@
 title: "About"
 ---
 
-About this site
+
+Benchmark that multiplies a `100x100` matrix n times with itself.
+
+```{r, include = FALSE}
+library(ggplot2)
+tbl <- readRDS(here("results", "matmul.rds"))
+ggplot(tbl, aes(x = n_matmuls, y = time)) +
+  facet_wrap(~ framework, scales = "free_y") +
+  geom_point() +
+  geom_line() +
+  labs(x = "Number of matrix multiplications", y = "Time (s)") +
+  theme_minimal()
+```
