@@ -7,7 +7,7 @@ matrix_size <- 200
 device <- "cpu"
 
 bench_matmul <- function(n_matmuls, matrix_size, device) {
-  x <- matrix(runif(matrix_size^2), nrow = matrix_size, ncol = matrix_size)
+  x <- matrix(diag(matrix_size), nrow = matrix_size, ncol = matrix_size)
 
   x_torch <- torch_tensor(x, device = device)
   x_anvil <- nv_tensor(x, platform = device)
@@ -37,7 +37,7 @@ bench_matmul <- function(n_matmuls, matrix_size, device) {
     }
     nv_reduce_sum(x, dim = 1:2)
   })
-  
+
   f_anvil(x_anvil)
 
   bench::mark(
