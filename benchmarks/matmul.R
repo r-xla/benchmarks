@@ -43,7 +43,6 @@ bench_matmul <- function(n_matmuls, matrix_size, device) {
   bench::mark(
     f_torch = torch::as_array(f_torch(x_torch)),
     f_anvil = as_array(f_anvil(x_anvil)),
-    check = FALSE,
     memory = FALSE
   )
 }
