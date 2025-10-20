@@ -2,25 +2,25 @@ library(batchtools)
 library(here)
 library(data.table)
 
-n_matmuls <- 40
-matrix_size <- 200
-device <- "cpu"
+#n_matmuls <- 40
+#matrix_size <- 200
+#device <- "cpu"
 
-bench_matmul <- function(n_matmuls, matrix_size, device) {
+bench_matmul <- function(n_matmuls, matrix_size, device, nthreads = 1L) {
   x <- matrix(diag(matrix_size), nrow = matrix_size, ncol = matrix_size)
 
   x_torch <- torch_tensor(x, device = device)
   x_anvil <- nv_tensor(x, platform = device)
 
-  torch::torch_set_num_threads(1)
+  torch::torch_set_num_threads(nthreads)
 
-  Sys.setenv(XLA_FLAGS = paste(c(
-    "--xla_cpu_multi_thread_eigen=false",
-    "intra_op_parallelism_threads=1",
-    "inter_op_parallelism_threads=1"),
-    collapse = " "))
+  #Sys.setenv(XLA_FLAGS = paste(c(
+  #  "--xla_cpu_multi_thread_eigen=false",
+  #  "intra_op_parallelism_threads=1",
+  #  "inter_op_parallelism_threads=1"),
+  #  collapse = " "))
 
-  Sys.setenv(NPROC = "1")
+  #Sys.setenv(NPROC = "1")
 
 
   f_torch <- function(x) {
@@ -43,6 +43,7 @@ bench_matmul <- function(n_matmuls, matrix_size, device) {
   bench::mark(
     f_torch = torch::as_array(f_torch(x_torch)),
     f_anvil = as_array(f_anvil(x_anvil)),
+    check = FALSE,
     memory = FALSE
   )
 }
@@ -52,7 +53,8 @@ config <- expand.grid(
   matrix_size = c(100, 200, 400, 800, 1600),
   matrix_size = 100,
   device = "cpu",
-  stringsAsFactors = FALSE
+  stringsAsFactors = FALSE,
+  nthreads = 16L
 )
 
 if (dir.exists(here("registries", "matmul"))) {
