@@ -49,8 +49,8 @@ bench_matmul <- function(n_matmuls, matrix_size, device, nthreads = 1L) {
 }
 
 config <- expand.grid(
-  n_matmuls = c(10, 20, 40, 80, 160, 320, 640, 1280, 2560),
-  matrix_size = c(100, 200, 400, 800, 1600),
+  n_matmuls = c(10, 20, 40, 80, 160, 320, 640, 1280, 2560, 5320),
+  matrix_size = c(10, 100, 1000),
   matrix_size = 100,
   device = "cpu",
   stringsAsFactors = FALSE,
