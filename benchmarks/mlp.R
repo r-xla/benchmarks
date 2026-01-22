@@ -111,13 +111,10 @@ train_torch <- function(X, y, model, optimizer, n_steps, batch_size, seed = 123)
   torch_manual_seed(seed)
   n_samples <- nrow(X)
 
-  x_torch <- torch_tensor(X, dtype = torch_float32())
-  y_torch <- torch_tensor(y, dtype = torch_float32())
-
   for (i in seq_len(n_steps)) {
     ids <- sample.int(n_samples, size = batch_size)
-    bx <- x_torch[ids, , drop = FALSE]
-    by <- y_torch[ids, , drop = FALSE]
+    bx <- torch_tensor(X[ids, , drop = FALSE])
+    by <- torch_tensor(y[ids, , drop = FALSE])
 
     optimizer$zero_grad()
     pred <- model(bx)
