@@ -92,7 +92,7 @@ torch_loss <- function(pred, targets) {
 train_anvil <- function(X, y, params, n_steps) {
   X <- nv_tensor(X, dtype = "f32")
   y <- nv_tensor(y, dtype = "f32")
-  out <- nv_while(list(i = 1L, p = params, l = nv_scalar(Inf, "f32")), \(i, p, l) i <= n_steps, \(i, p, l) {
+  out <- nv_while(list(i = 1L, p = params, l = nv_scalar(Inf, "f32", ambiguous = FALSE)), \(i, p, l) i <= n_steps, \(i, p, l) {
     out <- step(X, y, p)
     l <- out[[1L]]
     print(l)
