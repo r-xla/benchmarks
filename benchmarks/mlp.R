@@ -4,13 +4,13 @@ library(anvil)
 library(torch)
 library(bench)
 
-N_STEPS <- 200L
+N_STEPS <- 1000L
 N_SAMPLES <- 10000L
-N_FEATURES <- 100L
+N_FEATURES <- 10L
 N_OUTPUS <- 1L
 BATCH_SIZE <- 64L
 LEARNING_RATE <- 0.01
-HIDDEN_DIMS <- c(N_FEATURES, 256, 128, N_OUTPUS)
+HIDDEN_DIMS <- c(N_FEATURES, rep(10, 10), N_OUTPUS)
 
 set.seed(42)
 X <- matrix(rnorm(N_SAMPLES * N_FEATURES), N_SAMPLES, N_FEATURES)
@@ -103,7 +103,7 @@ train_anvil <- function(X, y, params, n_steps, batch_size, step_fn, seed = 123) 
     params <- out[[2L]]
   }
 
-  as_array(l)
+  anvil::as_array(l)
 }
 
 train_torch <- function(X, y, model, optimizer, n_steps, batch_size, seed = 123) {
@@ -129,9 +129,11 @@ train_torch <- function(X, y, model, optimizer, n_steps, batch_size, seed = 123)
   l$item()
 }
 
+step <- jit(step, donate = c("x", "y", "params"))
+
 # Warmup Anvil (JIT compilation)
 params_warmup <- init_model_params(HIDDEN_DIMS)
-train_anvil(X, y, params_warmup, n_steps = 1, BATCH_SIZE, jit(step, donate = c("x", "y", "params")))
+train_anvil(X, y, params_warmup, n_steps = 1, BATCH_SIZE, step)
 
 # ============================================================================
 # Run Benchmark
@@ -139,9 +141,8 @@ train_anvil(X, y, params_warmup, n_steps = 1, BATCH_SIZE, jit(step, donate = c("
 
 result <- bench::mark(
   anvil = {
-    step_jit <- jit(step, donate = c("x", "y", "params"))
     params <- init_model_params(HIDDEN_DIMS)
-    train_anvil(X, y, params, N_STEPS, BATCH_SIZE, step_jit)
+    train_anvil(X, y, params, N_STEPS, BATCH_SIZE, step)
   },
   torch = {
     model <- torch_mlp(HIDDEN_DIMS)
