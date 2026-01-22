@@ -2,10 +2,9 @@
 
 library(anvil)
 library(torch)
-library(dotty)
 library(bench)
 
-N_STEPS <- 100L
+N_STEPS <- 200L
 N_SAMPLES <- 10000L
 N_FEATURES <- 100L
 N_OUTPUS <- 1L
@@ -59,7 +58,9 @@ loss <- function(x, y, params) {
 }
 
 step <- function(x, y, params) {
-  .[l, .[grads]] <- value_and_gradient(loss, wrt = "params")(x, y, params)
+  out <- value_and_gradient(loss, wrt = "params")(x, y, params)
+  l <- out[[1L]]
+  grads <- out[[2L]][[1L]]
   params <- Map(function(p_layer, g_layer) {
     Map(\(p, g) p - nv_scalar(LEARNING_RATE) * g, p_layer, g_layer)
   }, params, grads)
@@ -97,7 +98,9 @@ train_anvil <- function(X, y, params, n_steps, batch_size, step_fn, seed = 123) 
     ids <- sample.int(n_samples, size = batch_size)
     bx <- nv_tensor(X[ids, , drop = FALSE])
     by <- nv_tensor(y[ids, , drop = FALSE])
-    .[l, params] <- step_fn(bx, by, params)
+    out <- step_fn(bx, by, params)
+    l <- out[[1L]]
+    params <- out[[2L]]
   }
 
   as_array(l)
@@ -128,7 +131,7 @@ train_torch <- function(X, y, model, optimizer, n_steps, batch_size, seed = 123)
 
 # Warmup Anvil (JIT compilation)
 params_warmup <- init_model_params(HIDDEN_DIMS)
-train_anvil(X, y, params_warmup, n_steps = 1, BATCH_SIZE, step)
+train_anvil(X, y, params_warmup, n_steps = 1, BATCH_SIZE, jit(step, donate = c("x", "y", "params")))
 
 # ============================================================================
 # Run Benchmark
@@ -145,8 +148,9 @@ result <- bench::mark(
     optimizer <- optim_sgd(model$parameters, lr = LEARNING_RATE, momentum = 0, dampening = 0)
     train_torch(X, y, model, optimizer, N_STEPS, BATCH_SIZE)
   },
-  iterations = 10,
-  check = FALSE
+  iterations = 1,
+  check = FALSE,
+  memory = FALSE
 )
 
 print(result)
