@@ -5,17 +5,16 @@ library(torch)
 library(bench)
 
 N_STEPS <- 1000L
-N_SAMPLES <- 10000L
 N_FEATURES <- 10L
 N_OUTPUS <- 1L
 BATCH_SIZE <- 64L
 LEARNING_RATE <- 0.01
-HIDDEN_DIMS <- c(N_FEATURES, rep(10, 10), N_OUTPUS)
+HIDDEN_DIMS <- c(N_FEATURES, rep(100, 10), N_OUTPUS)
 
 set.seed(42)
-X <- matrix(rnorm(N_SAMPLES * N_FEATURES), N_SAMPLES, N_FEATURES)
+X <- matrix(rnorm(BATCH_SIZE * N_FEATURES), BATCH_SIZE, N_FEATURES)
 beta <- matrix(rnorm(N_FEATURES * N_OUTPUS), N_FEATURES, N_OUTPUS)
-y <- X %*% beta + matrix(rnorm(N_SAMPLES * N_OUTPUS, sd = 0.1), N_SAMPLES, N_OUTPUS)
+y <- X %*% beta + matrix(rnorm(BATCH_SIZE * N_OUTPUS, sd = 0.1), BATCH_SIZE, N_OUTPUS)
 
 # Training hyperparameters
 
@@ -90,35 +89,32 @@ torch_loss <- function(pred, targets) {
   nnf_mse_loss(pred, targets)
 }
 
-train_anvil <- function(X, y, params, n_steps, batch_size, step_fn, seed = 123) {
-  set.seed(seed)
-  n_samples <- nrow(X)
-
-  for (i in seq_len(n_steps)) {
-    ids <- sample.int(n_samples, size = batch_size)
-    bx <- nv_tensor(X[ids, , drop = FALSE])
-    by <- nv_tensor(y[ids, , drop = FALSE])
-    out <- step_fn(bx, by, params)
+train_anvil <- function(X, y, params, n_steps) {
+  X <- nv_tensor(X, dtype = "f32")
+  y <- nv_tensor(y, dtype = "f32")
+  out <- nv_while(list(i = 1L, p = params, l = nv_scalar(Inf, "f32")), \(i, p, l) i <= n_steps, \(i, p, l) {
+    out <- step(X, y, p)
     l <- out[[1L]]
+    print(l)
     params <- out[[2L]]
-  }
-
-  anvil::as_array(l)
+    list(
+      i = i + 1L,
+      p = params,
+      l = l
+    )
+  })
+  l <- out[[1L]]
+  params <- out[[2L]]
+  l
 }
 
-train_torch <- function(X, y, model, optimizer, n_steps, batch_size, seed = 123) {
-  set.seed(seed)
-  torch_manual_seed(seed)
-  n_samples <- nrow(X)
-
+train_torch <- function(X, y, model, optimizer, n_steps) {
+  X <- torch_tensor(X, dtype = torch_float32())
+  y <- torch_tensor(y, dtype = torch_float32())
   for (i in seq_len(n_steps)) {
-    ids <- sample.int(n_samples, size = batch_size)
-    bx <- torch_tensor(X[ids, , drop = FALSE])
-    by <- torch_tensor(y[ids, , drop = FALSE])
-
     optimizer$zero_grad()
-    pred <- model(bx)
-    l <- torch_loss(pred, by)
+    pred <- model(X)
+    l <- torch_loss(pred, y)
     l$backward()
     optimizer$step()
   }
@@ -126,11 +122,10 @@ train_torch <- function(X, y, model, optimizer, n_steps, batch_size, seed = 123)
   l$item()
 }
 
-step <- jit(step, donate = c("x", "y", "params"))
-
 # Warmup Anvil (JIT compilation)
 params_warmup <- init_model_params(HIDDEN_DIMS)
-train_anvil(X, y, params_warmup, n_steps = 1, BATCH_SIZE, step)
+train_anvil_jit <- jit(train_anvil, static = c("X", "y", "n_steps"))
+train_anvil_jit(X, y, params_warmup, n_steps = 1)
 
 # ============================================================================
 # Run Benchmark
@@ -139,12 +134,14 @@ train_anvil(X, y, params_warmup, n_steps = 1, BATCH_SIZE, step)
 result <- bench::mark(
   anvil = {
     params <- init_model_params(HIDDEN_DIMS)
-    train_anvil(X, y, params, N_STEPS, BATCH_SIZE, step)
+    loss <- train_anvil_jit(X, y, params, N_STEPS)
+    loss
   },
   torch = {
     model <- torch_mlp(HIDDEN_DIMS)
     optimizer <- optim_sgd(model$parameters, lr = LEARNING_RATE, momentum = 0, dampening = 0)
-    train_torch(X, y, model, optimizer, N_STEPS, BATCH_SIZE)
+    loss <- train_torch(X, y, model, optimizer, N_STEPS)
+    loss
   },
   iterations = 1,
   check = FALSE,
