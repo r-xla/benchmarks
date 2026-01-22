@@ -5,33 +5,21 @@ library(torch)
 library(dotty)
 library(bench)
 
-# Benchmark configuration
 N_STEPS <- 100L
+N_SAMPLES <- 10000L
+N_FEATURES <- 100L
+N_OUTPUS <- 1L
+BATCH_SIZE <- 64L
+LEARNING_RATE <- 0.01
+HIDDEN_DIMS <- c(N_FEATURES, 256, 128, N_OUTPUS)
 
-# Configure torch to use all CPU threads
-torch_set_num_threads(parallel::detectCores())
-torch_set_num_interop_threads(parallel::detectCores())
-
-# Generate random data: y = X * beta + eps
 set.seed(42)
-n_samples <- 10000L
-n_features <- 100L
-n_outputs <- 1L
-
-X <- matrix(rnorm(n_samples * n_features), n_samples, n_features)
-beta <- matrix(rnorm(n_features * n_outputs), n_features, n_outputs)
-y <- X %*% beta + matrix(rnorm(n_samples * n_outputs, sd = 0.1), n_samples, n_outputs)
+X <- matrix(rnorm(N_SAMPLES * N_FEATURES), N_SAMPLES, N_FEATURES)
+beta <- matrix(rnorm(N_FEATURES * N_OUTPUS), N_FEATURES, N_OUTPUS)
+y <- X %*% beta + matrix(rnorm(N_SAMPLES * N_OUTPUS, sd = 0.1), N_SAMPLES, N_OUTPUS)
 
 # Training hyperparameters
-batch_size <- 64L
-learning_rate <- 0.01
-hidden_dims <- c(n_features, 256, 128, n_outputs)
 
-# ============================================================================
-# Anvil Implementation
-# ============================================================================
-
-# Anvil helper functions
 linear <- function(x, params) {
   out <- x %*% params$W
   out + nv_broadcast_to(params$b, shape = shape(out))
@@ -45,7 +33,7 @@ init_linear_params <- function(nin, nout) {
 }
 
 relu <- function(x) {
-  nv_max(x, nv_scalar(0))
+  nv_max(x, 0)
 }
 
 model <- function(x, params) {
@@ -70,17 +58,13 @@ loss <- function(x, y, params) {
   nv_reduce_mean(diff * diff, dims = c(1, 2))
 }
 
-step <- jit(donate = c("x", "y", "params"), function(x, y, params) {
+step <- function(x, y, params) {
   .[l, .[grads]] <- value_and_gradient(loss, wrt = "params")(x, y, params)
   params <- Map(function(p_layer, g_layer) {
-    Map(\(p, g) p - nv_scalar(learning_rate) * g, p_layer, g_layer)
+    Map(\(p, g) p - nv_scalar(LEARNING_RATE) * g, p_layer, g_layer)
   }, params, grads)
   list(l, params)
-})
-
-# ============================================================================
-# Torch Implementation
-# ============================================================================
+}
 
 torch_mlp <- nn_module(
   initialize = function(hidden_dims) {
@@ -105,10 +89,6 @@ torch_loss <- function(pred, targets) {
   nnf_mse_loss(pred, targets)
 }
 
-# ============================================================================
-# Benchmark Functions
-# ============================================================================
-
 train_anvil <- function(X, y, params, n_steps, batch_size, step_fn, seed = 123) {
   set.seed(seed)
   n_samples <- nrow(X)
@@ -120,7 +100,7 @@ train_anvil <- function(X, y, params, n_steps, batch_size, step_fn, seed = 123) 
     .[l, params] <- step_fn(bx, by, params)
   }
 
-  invisible(NULL)
+  as_array(l)
 }
 
 train_torch <- function(X, y, model, optimizer, n_steps, batch_size, seed = 123) {
@@ -143,12 +123,12 @@ train_torch <- function(X, y, model, optimizer, n_steps, batch_size, seed = 123)
     optimizer$step()
   }
 
-  invisible(NULL)
+  l$item()
 }
 
 # Warmup Anvil (JIT compilation)
-params_warmup <- init_model_params(hidden_dims)
-train_anvil(X, y, params_warmup, n_steps = 1, batch_size, step)
+params_warmup <- init_model_params(HIDDEN_DIMS)
+train_anvil(X, y, params_warmup, n_steps = 1, BATCH_SIZE, step)
 
 # ============================================================================
 # Run Benchmark
@@ -156,13 +136,14 @@ train_anvil(X, y, params_warmup, n_steps = 1, batch_size, step)
 
 result <- bench::mark(
   anvil = {
-    params <- init_model_params(hidden_dims)
-    train_anvil(X, y, params, N_STEPS, batch_size, step)
+    step_jit <- jit(step, donate = c("x", "y", "params"))
+    params <- init_model_params(HIDDEN_DIMS)
+    train_anvil(X, y, params, N_STEPS, BATCH_SIZE, step_jit)
   },
   torch = {
-    model <- torch_mlp(hidden_dims)
-    optimizer <- optim_sgd(model$parameters, lr = learning_rate, momentum = 0, dampening = 0)
-    train_torch(X, y, model, optimizer, N_STEPS, batch_size)
+    model <- torch_mlp(HIDDEN_DIMS)
+    optimizer <- optim_sgd(model$parameters, lr = LEARNING_RATE, momentum = 0, dampening = 0)
+    train_torch(X, y, model, optimizer, N_STEPS, BATCH_SIZE)
   },
   iterations = 10,
   check = FALSE
