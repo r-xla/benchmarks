@@ -71,6 +71,11 @@ time_anvil <- function(epochs, batch_size, n_batches, n_layers, latent, p, devic
     list(l, params)
   }
 
+  mse <- function(pred, y) {
+    diff <- pred - y
+    mean(diff * diff)
+  }
+
   if (compile_loop) {
     # Mode 1: Whole training loop is JIT compiled using nv_while
     # Uses mini-batch SGD with iota-based indexing
@@ -102,8 +107,32 @@ time_anvil <- function(epochs, batch_size, n_batches, n_layers, latent, p, devic
       list(loss = out$l, params = out$p)
     }
 
+    eval_anvil <- function(X, y, params, batch_size, n_batches) {
+      X_t <- nv_tensor(X, dtype = "f32")
+      y_t <- nv_tensor(y, dtype = "f32")
+
+      indices <- nv_iota(c(n_batches, batch_size), 1L, dtype = "s32")
+
+      out <- nv_while(
+        list(batch = 1L, total_loss = nv_scalar(0, "f32", ambiguous = FALSE)),
+        \(batch, total_loss) batch <= n_batches,
+        \(batch, total_loss) {
+          batch_indices <- indices[batch, ]
+          X_batch <- X_t[batch_indices, ]
+          y_batch <- y_t[batch_indices, ]
+
+          pred <- model(X_batch, params)
+          loss <- mse(pred, y_batch)
+
+          list(batch = batch + 1L, total_loss = total_loss + loss)
+        }
+      )
+      out$total_loss / nv_scalar(n_batches, "f32")
+    }
+
     # JIT compile the training function
     train_anvil_jit <- jit(train_anvil, static = c("X", "y", "n_epochs", "batch_size", "n_batches"))
+    eval_anvil_jit <- jit(eval_anvil, static = c("X", "y", "batch_size", "n_batches"))
 
     # Initialize parameters and warmup
     params <- init_model_params(hidden_dims)
@@ -117,7 +146,7 @@ time_anvil <- function(epochs, batch_size, n_batches, n_layers, latent, p, devic
     result <- train_anvil_jit(X, Y, params, n_epochs = epochs, batch_size = batch_size, n_batches = n_batches)
     time <- as.numeric(difftime(Sys.time(), t0, units = "secs"))
 
-    final_loss <- anvil::as_array(result$loss)
+    final_loss <- anvil::as_array(eval_anvil_jit(X, Y, result$params, batch_size = batch_size, n_batches = n_batches))
   } else {
     # Mode 2: Step function is JIT compiled, loop is in R
     # Uses mini-batch SGD with R-level slicing
@@ -127,6 +156,12 @@ time_anvil <- function(epochs, batch_size, n_batches, n_layers, latent, p, devic
 
     # JIT compile the step function
     step_anvil_jit <- jit(step_anvil)
+
+    eval_batch <- function(X_t, y_t, params) {
+      pred <- model(X_t, params)
+      mse(pred, y_t)
+    }
+    eval_batch_jit <- jit(eval_batch)
 
     # Initialize parameters and warmup with first batch
     params <- init_model_params(hidden_dims)
@@ -151,7 +186,16 @@ time_anvil <- function(epochs, batch_size, n_batches, n_layers, latent, p, devic
     }
     time <- as.numeric(difftime(Sys.time(), t0, units = "secs"))
 
-    final_loss <- anvil::as_array(out[[1L]])
+    # Evaluation loop
+    total_loss <- 0
+    for (b in seq_len(n_batches)) {
+      idx_start <- (b - 1L) * batch_size + 1L
+      idx_end <- b * batch_size
+      X_batch <- nv_tensor(X[idx_start:idx_end, , drop = FALSE], dtype = "f32")
+      Y_batch <- nv_tensor(Y[idx_start:idx_end, , drop = FALSE], dtype = "f32")
+      total_loss <- total_loss + anvil::as_array(eval_batch_jit(X_batch, Y_batch, params))
+    }
+    final_loss <- total_loss / n_batches
   }
 
   list(time = time, loss = final_loss, cuda_memory = NA)
