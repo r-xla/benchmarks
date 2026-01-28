@@ -4,7 +4,7 @@ import math
 from torch import nn
 
 
-def time_pytorch(epochs, batch_size, n_batches, n_layers, latent, p, device, seed, jit):
+def time_pytorch(epochs, batch_size, n_batches, n_layers, latent, p, device, seed):
     torch.manual_seed(seed)
     torch.set_num_threads(1)
 
@@ -33,10 +33,6 @@ def time_pytorch(epochs, batch_size, n_batches, n_layers, latent, p, device, see
     Y = X.matmul(beta) + torch.randn(n, 1, device=device) * 0.01
 
     net = make_network(p, latent, n_layers)
-
-    if jit:
-        net = torch.jit.script(net)
-
     net.to(device)
 
     lr = 0.0001
@@ -91,5 +87,5 @@ def time_pytorch(epochs, batch_size, n_batches, n_layers, latent, p, device, see
 if __name__ == "__main__":
     print(time_pytorch(
         epochs=1, batch_size=32, n_batches=64, n_layers=4, latent=100,
-        p=1000, device='cpu', seed=42, jit=False
+        p=1000, device='cpu', seed=42
     ))

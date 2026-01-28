@@ -61,7 +61,7 @@ time_anvil <- function(epochs, batch_size, n_batches, n_layers, latent, p, devic
     nv_reduce_mean(diff * diff, dims = c(1L, 2L))
   }
 
-  step_sgd <- function(x, y, params) {
+  step_sgd <- function(x, y, params, lr) {
     out <- value_and_gradient(loss_fn, wrt = "params")(x, y, params)
     l <- out[[1L]]
     grads <- out[[2L]][[1L]]
@@ -90,7 +90,7 @@ time_anvil <- function(epochs, batch_size, n_batches, n_layers, latent, p, devic
           X_batch <- X_t[batch_indices, ]
           y_batch <- y_t[batch_indices, ]
 
-          out <- step_sgd(X_batch, y_batch, p)
+          out <- step_sgd(X_batch, y_batch, p, lr)
 
           # Update batch and epoch counters
           next_batch <- nv_if(batch == n_batches, 1L, batch + 1L)
@@ -121,8 +121,8 @@ time_anvil <- function(epochs, batch_size, n_batches, n_layers, latent, p, devic
   } else {
     # Mode 2: Step function is JIT compiled, loop is in R
     # Uses mini-batch SGD with R-level slicing
-    step_anvil <- function(X_t, y_t, params) {
-      step_sgd(X_t, y_t, params)
+    step_anvil <- function(X_t, y_t, params, lr) {
+      step_sgd(X_t, y_t, params, lr)
     }
 
     # JIT compile the step function
@@ -132,7 +132,7 @@ time_anvil <- function(epochs, batch_size, n_batches, n_layers, latent, p, devic
     params <- init_model_params(hidden_dims)
     X_batch <- nv_tensor(X[1:batch_size, , drop = FALSE], dtype = "f32")
     Y_batch <- nv_tensor(Y[1:batch_size, , drop = FALSE], dtype = "f32")
-    step_anvil_jit(X_batch, Y_batch, params)
+    step_anvil_jit(X_batch, Y_batch, params, lr)
 
     # Reinitialize for actual run
     params <- init_model_params(hidden_dims)
@@ -145,7 +145,7 @@ time_anvil <- function(epochs, batch_size, n_batches, n_layers, latent, p, devic
         idx_end <- b * batch_size
         X_batch <- nv_tensor(X[idx_start:idx_end, , drop = FALSE], dtype = "f32")
         Y_batch <- nv_tensor(Y[idx_start:idx_end, , drop = FALSE], dtype = "f32")
-        out <- step_anvil_jit(X_batch, Y_batch, params)
+        out <- step_anvil_jit(X_batch, Y_batch, params, lr)
         params <- out[[2L]]
       }
     }

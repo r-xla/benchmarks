@@ -1,6 +1,6 @@
 # Time R torch MLP training
 
-time_rtorch <- function(epochs, batch_size, n_batches, n_layers, latent, p, device, jit, seed) {
+time_rtorch <- function(epochs, batch_size, n_batches, n_layers, latent, p, device, seed) {
   library(torch)
   torch_set_num_threads(1L)
   torch_manual_seed(seed)
@@ -25,11 +25,6 @@ time_rtorch <- function(epochs, batch_size, n_batches, n_layers, latent, p, devi
 
   net <- make_network(p, latent, n_layers)
   loss_fn <- nn_mse_loss()
-
-  if (jit) {
-    net <- jit_trace(net, torch_randn(1L, p), respect_mode = TRUE)
-  }
-
   net$to(device = device)
 
   dataset <- torch::dataset(

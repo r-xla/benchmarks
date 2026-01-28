@@ -43,7 +43,7 @@ setup <- function(reg_path, python_path, work_dir, seed = 42L) {
     }
   )
 
-  addAlgorithm("pytorch", fun = function(instance, job, jit, ...) {
+  addAlgorithm("pytorch", fun = function(instance, job, ...) {
     f <- function(..., python_path) {
       library(reticulate)
       x <- try({
@@ -54,12 +54,12 @@ setup <- function(reg_path, python_path, work_dir, seed = 42L) {
       }, silent = TRUE)
       print(x)
     }
-    args <- c(instance, list(seed = job$seed, jit = jit, python_path = python_path))
+    args <- c(instance, list(seed = job$seed, python_path = python_path))
     callr::r(f, args = args)
   })
 
-  addAlgorithm("rtorch", fun = function(instance, job, jit, ...) {
-    callr::r(time_rtorch, args = c(instance, list(seed = job$seed, jit = jit)))
+  addAlgorithm("rtorch", fun = function(instance, job, ...) {
+    callr::r(time_rtorch, args = c(instance, list(seed = job$seed)))
   })
 
   addAlgorithm("anvil", fun = function(instance, job, compile_loop, ...) {
