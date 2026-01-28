@@ -33,8 +33,8 @@ problem_design <- expand.grid(
     n_batches = N_BATCHES,
     p = P,
     device = "cpu",
-    n_layers = c(0L, 4L, 8L, 12L, 16L),
-    latent = c(100L, 200L, 400L)
+    n_layers = c(0L, 4L),
+    latent = c(10, 20, 40, 80)
   ),
   stringsAsFactors = FALSE
 )
@@ -45,8 +45,8 @@ addExperiments(
   ),
   algo.designs = list(
     rtorch = data.frame(jit = FALSE),
-    anvil = data.frame(placeholder = TRUE),
-    pytorch = data.frame(jit = FALSE)
+    #pytorch = data.frame(jit = FALSE),
+    anvil = data.frame(placeholder = TRUE)
   ),
   repls = REPLS
 )

@@ -1,8 +1,4 @@
-# MLP Benchmark: R torch vs anvil vs PyTorch
-# Adapted from mlr3torch paper benchmarks
-
 library(batchtools)
-library(mlr3misc)
 
 setup <- function(reg_path, python_path, work_dir, seed = 42L) {
   reg <- makeExperimentRegistry(
@@ -72,8 +68,8 @@ setup <- function(reg_path, python_path, work_dir, seed = 42L) {
 }
 
 # Global config
-REPLS <- 10L
+REPLS <- 2L
 EPOCHS <- 20L
 N_BATCHES <- 64L
 BATCH_SIZE <- 32L
-P <- 1000L
+P <- 10L
