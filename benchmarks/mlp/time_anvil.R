@@ -73,60 +73,81 @@ time_anvil <- function(epochs, batch_size, n_batches, n_layers, latent, p, devic
 
   if (compile_loop) {
     # Mode 1: Whole training loop is JIT compiled using nv_while
-    train_anvil <- function(X, y, params, n_epochs) {
+    # Uses mini-batch SGD with iota-based indexing
+    train_anvil <- function(X, y, params, n_epochs, batch_size, n_batches) {
       X_t <- nv_tensor(X, dtype = "f32")
       y_t <- nv_tensor(y, dtype = "f32")
 
+      # Create batch indices: iota of shape (n_batches, batch_size)
+      indices <- nv_iota(c(n_batches, batch_size), 1L, dtype = "s32")
+
       out <- nv_while(
-        list(i = 1L, p = params, l = nv_scalar(Inf, "f32", ambiguous = FALSE)),
-        \(i, p, l) i <= n_epochs,
-        \(i, p, l) {
-          out <- step_sgd(X_t, y_t, p)
-          list(i = i + 1L, p = out[[2L]], l = out[[1L]])
+        list(epoch = 1L, batch = 1L, p = params, l = nv_scalar(Inf, "f32", ambiguous = FALSE)),
+        \(epoch, batch, p, l) epoch <= n_epochs,
+        \(epoch, batch, p, l) {
+          # Get indices for current batch and slice X, y
+          batch_indices <- indices[batch, ]
+          X_batch <- X_t[batch_indices, ]
+          y_batch <- y_t[batch_indices, ]
+
+          out <- step_sgd(X_batch, y_batch, p)
+
+          # Update batch and epoch counters
+          next_batch <- nv_if(batch == n_batches, 1L, batch + 1L)
+          next_epoch <- nv_if(batch == n_batches, epoch + 1L, epoch)
+
+          list(epoch = next_epoch, batch = next_batch, p = out[[2L]], l = out[[1L]])
         }
       )
       list(loss = out$l, params = out$p)
     }
 
     # JIT compile the training function
-    train_anvil_jit <- jit(train_anvil, static = c("X", "y", "n_epochs"))
+    train_anvil_jit <- jit(train_anvil, static = c("X", "y", "n_epochs", "batch_size", "n_batches"))
 
     # Initialize parameters and warmup
     params <- init_model_params(hidden_dims)
-    train_anvil_jit(X, Y, params, n_epochs = 1L)
+    train_anvil_jit(X, Y, params, n_epochs = 1L, batch_size = batch_size, n_batches = n_batches)
 
     # Reinitialize for actual run
     params <- init_model_params(hidden_dims)
 
     # Timed run
     t0 <- Sys.time()
-    result <- train_anvil_jit(X, Y, params, n_epochs = epochs)
+    result <- train_anvil_jit(X, Y, params, n_epochs = epochs, batch_size = batch_size, n_batches = n_batches)
     time <- as.numeric(difftime(Sys.time(), t0, units = "secs"))
 
     final_loss <- anvil::as_array(result$loss)
   } else {
     # Mode 2: Step function is JIT compiled, loop is in R
-    step_anvil <- function(X, y, params) {
-      X_t <- nv_tensor(X, dtype = "f32")
-      y_t <- nv_tensor(y, dtype = "f32")
+    # Uses mini-batch SGD with R-level slicing
+    step_anvil <- function(X_t, y_t, params) {
       step_sgd(X_t, y_t, params)
     }
 
     # JIT compile the step function
-    step_anvil_jit <- jit(step_anvil, static = c("X", "y"))
+    step_anvil_jit <- jit(step_anvil)
 
-    # Initialize parameters and warmup
+    # Initialize parameters and warmup with first batch
     params <- init_model_params(hidden_dims)
-    step_anvil_jit(X, Y, params)
+    X_batch <- nv_tensor(X[1:batch_size, , drop = FALSE], dtype = "f32")
+    Y_batch <- nv_tensor(Y[1:batch_size, , drop = FALSE], dtype = "f32")
+    step_anvil_jit(X_batch, Y_batch, params)
 
     # Reinitialize for actual run
     params <- init_model_params(hidden_dims)
 
-    # Timed run with R loop
+    # Timed run with R loop - mini-batch SGD
     t0 <- Sys.time()
-    for (i in seq_len(epochs)) {
-      out <- step_anvil_jit(X, Y, params)
-      params <- out[[2L]]
+    for (epoch in seq_len(epochs)) {
+      for (b in seq_len(n_batches)) {
+        idx_start <- (b - 1L) * batch_size + 1L
+        idx_end <- b * batch_size
+        X_batch <- nv_tensor(X[idx_start:idx_end, , drop = FALSE], dtype = "f32")
+        Y_batch <- nv_tensor(Y[idx_start:idx_end, , drop = FALSE], dtype = "f32")
+        out <- step_anvil_jit(X_batch, Y_batch, params)
+        params <- out[[2L]]
+      }
     }
     time <- as.numeric(difftime(Sys.time(), t0, units = "secs"))
 
