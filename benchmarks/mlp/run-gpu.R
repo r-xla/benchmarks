@@ -42,9 +42,7 @@ addExperiments(
   ),
   algo.designs = list(
     rtorch = data.frame(jit = FALSE),
-    # Note: anvil GPU support may require additional setup
-    # anvil_jit = data.frame(placeholder = TRUE),
-    # anvil_loop = data.frame(placeholder = TRUE),
+    anvil = data.frame(compile_loop = c(TRUE, FALSE)),
     pytorch = data.frame(jit = FALSE)
   ),
   repls = REPLS

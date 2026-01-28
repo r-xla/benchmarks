@@ -62,8 +62,8 @@ setup <- function(reg_path, python_path, work_dir, seed = 42L) {
     callr::r(time_rtorch, args = c(instance, list(seed = job$seed, jit = jit)))
   })
 
-  addAlgorithm("anvil", fun = function(instance, job, ...) {
-    callr::r(time_anvil, args = c(instance, list(seed = job$seed)))
+  addAlgorithm("anvil", fun = function(instance, job, compile_loop, ...) {
+    callr::r(time_anvil, args = c(instance, list(seed = job$seed, compile_loop = compile_loop)))
   })
 }
 

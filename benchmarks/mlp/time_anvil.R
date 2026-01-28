@@ -1,7 +1,9 @@
 # Time anvil MLP training
-# Whole training loop is JIT compiled using nv_while
+# Supports two modes:
+# - compile_loop = TRUE: Whole training loop is JIT compiled using nv_while
+# - compile_loop = FALSE: Step function is JIT compiled, loop is in R
 
-time_anvil <- function(epochs, batch_size, n_batches, n_layers, latent, p, device, seed) {
+time_anvil <- function(epochs, batch_size, n_batches, n_layers, latent, p, device, seed, compile_loop = TRUE) {
   library(anvil)
   set.seed(seed)
 
@@ -69,36 +71,67 @@ time_anvil <- function(epochs, batch_size, n_batches, n_layers, latent, p, devic
     list(l, params)
   }
 
-  train_anvil <- function(X, y, params, n_epochs) {
-    X_t <- nv_tensor(X, dtype = "f32")
-    y_t <- nv_tensor(y, dtype = "f32")
+  if (compile_loop) {
+    # Mode 1: Whole training loop is JIT compiled using nv_while
+    train_anvil <- function(X, y, params, n_epochs) {
+      X_t <- nv_tensor(X, dtype = "f32")
+      y_t <- nv_tensor(y, dtype = "f32")
 
-    out <- nv_while(
-      list(i = 1L, p = params, l = nv_scalar(Inf, "f32", ambiguous = FALSE)),
-      \(i, p, l) i <= n_epochs,
-      \(i, p, l) {
-        out <- step_sgd(X_t, y_t, p)
-        list(i = i + 1L, p = out[[2L]], l = out[[1L]])
-      }
-    )
-    list(loss = out$l, params = out$p)
+      out <- nv_while(
+        list(i = 1L, p = params, l = nv_scalar(Inf, "f32", ambiguous = FALSE)),
+        \(i, p, l) i <= n_epochs,
+        \(i, p, l) {
+          out <- step_sgd(X_t, y_t, p)
+          list(i = i + 1L, p = out[[2L]], l = out[[1L]])
+        }
+      )
+      list(loss = out$l, params = out$p)
+    }
+
+    # JIT compile the training function
+    train_anvil_jit <- jit(train_anvil, static = c("X", "y", "n_epochs"))
+
+    # Initialize parameters and warmup
+    params <- init_model_params(hidden_dims)
+    train_anvil_jit(X, Y, params, n_epochs = 1L)
+
+    # Reinitialize for actual run
+    params <- init_model_params(hidden_dims)
+
+    # Timed run
+    t0 <- Sys.time()
+    result <- train_anvil_jit(X, Y, params, n_epochs = epochs)
+    time <- as.numeric(difftime(Sys.time(), t0, units = "secs"))
+
+    final_loss <- anvil::as_array(result$loss)
+  } else {
+    # Mode 2: Step function is JIT compiled, loop is in R
+    step_anvil <- function(X, y, params) {
+      X_t <- nv_tensor(X, dtype = "f32")
+      y_t <- nv_tensor(y, dtype = "f32")
+      step_sgd(X_t, y_t, params)
+    }
+
+    # JIT compile the step function
+    step_anvil_jit <- jit(step_anvil, static = c("X", "y"))
+
+    # Initialize parameters and warmup
+    params <- init_model_params(hidden_dims)
+    step_anvil_jit(X, Y, params)
+
+    # Reinitialize for actual run
+    params <- init_model_params(hidden_dims)
+
+    # Timed run with R loop
+    t0 <- Sys.time()
+    for (i in seq_len(epochs)) {
+      out <- step_anvil_jit(X, Y, params)
+      params <- out[[2L]]
+    }
+    time <- as.numeric(difftime(Sys.time(), t0, units = "secs"))
+
+    final_loss <- anvil::as_array(out[[1L]])
   }
 
-  # JIT compile the training function
-  train_anvil_jit <- jit(train_anvil, static = c("X", "y", "n_epochs"))
-
-  # Initialize parameters and warmup
-  params <- init_model_params(hidden_dims)
-  train_anvil_jit(X, Y, params, n_epochs = 1L)
-
-  # Reinitialize for actual run
-  params <- init_model_params(hidden_dims)
-
-  # Timed run
-  t0 <- Sys.time()
-  result <- train_anvil_jit(X, Y, params, n_epochs = epochs)
-  time <- as.numeric(difftime(Sys.time(), t0, units = "secs"))
-
-  final_loss <- anvil::as_array(result$loss)
   list(time = time, loss = final_loss, cuda_memory = NA)
 }
