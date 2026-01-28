@@ -77,15 +77,5 @@ time_rtorch <- function(epochs, batch_size, n_batches, n_layers, latent, p, devi
   train_run(2L)
 
   if (device == "cuda") cuda_synchronize()
-  time <- train_run(epochs)
-  if (device == "cuda") cuda_synchronize()
-
-  cuda_memory <- if (device == "cuda") {
-    stats <- cuda_memory_stats()
-    stats$reserved_bytes$all$current
-  } else {
-    NA
-  }
-
-  list(time = time, loss = eval_run(), cuda_memory = cuda_memory)
+  list(time = time, loss = eval_run())
 }

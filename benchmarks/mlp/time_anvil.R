@@ -7,7 +7,7 @@ time_anvil <- function(epochs, batch_size, n_batches, n_layers, latent, p, devic
   library(anvil)
   set.seed(seed)
 
-  lr <- 0.0001
+  lr <- nv_scalar(0.0001, "f32")
   n <- batch_size * n_batches
 
   # Create data
@@ -79,7 +79,8 @@ time_anvil <- function(epochs, batch_size, n_batches, n_layers, latent, p, devic
       y_t <- nv_tensor(y, dtype = "f32")
 
       # Create batch indices: iota of shape (n_batches, batch_size)
-      indices <- nv_iota(c(n_batches, batch_size), 1L, dtype = "s32")
+      indices <- nv_iota(1L, shape = n_batches * batch_size, dtype = "i32")
+      indices <- nv_reshape(indices, shape = c(n_batches, batch_size))
 
       out <- nv_while(
         list(epoch = 1L, batch = 1L, p = params, l = nv_scalar(Inf, "f32", ambiguous = FALSE)),
@@ -115,9 +116,10 @@ time_anvil <- function(epochs, batch_size, n_batches, n_layers, latent, p, devic
     # Timed run
     t0 <- Sys.time()
     result <- train_anvil_jit(X, Y, params, n_epochs = epochs, batch_size = batch_size, n_batches = n_batches)
+    final_loss <- anvil::as_array(result$loss)
+    # needed to sync
     time <- as.numeric(difftime(Sys.time(), t0, units = "secs"))
 
-    final_loss <- anvil::as_array(result$loss)
   } else {
     # Mode 2: Step function is JIT compiled, loop is in R
     # Uses mini-batch SGD with R-level slicing
@@ -126,7 +128,7 @@ time_anvil <- function(epochs, batch_size, n_batches, n_layers, latent, p, devic
     }
 
     # JIT compile the step function
-    step_anvil_jit <- jit(step_anvil)
+    step_anvil_jit <- jit(step_anvil, donate = c("X", "y", "params"))
 
     # Initialize parameters and warmup with first batch
     params <- init_model_params(hidden_dims)
@@ -149,10 +151,11 @@ time_anvil <- function(epochs, batch_size, n_batches, n_layers, latent, p, devic
         params <- out[[2L]]
       }
     }
+    # needed to sync
+    final_loss <- anvil::as_array(out[[1L]])
     time <- as.numeric(difftime(Sys.time(), t0, units = "secs"))
 
-    final_loss <- anvil::as_array(out[[1L]])
   }
 
-  list(time = time, loss = final_loss, cuda_memory = NA)
+  list(time = time, loss = final_loss)
 }

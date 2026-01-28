@@ -76,12 +76,7 @@ def time_pytorch(epochs, batch_size, n_batches, n_layers, latent, p, device, see
             mean_loss += loss.item()
     mean_loss /= n_batches
 
-    if device.type == "cuda":
-        memory = float(torch.cuda.memory_reserved())
-    else:
-        memory = None
-
-    return {'time': t, 'loss': mean_loss, 'memory': memory}
+    return {'time': t, 'loss': mean_loss}
 
 
 if __name__ == "__main__":
