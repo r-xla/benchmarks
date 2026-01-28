@@ -27,7 +27,7 @@ bench_matmul <- function(n_matmuls, matrix_size, device, nthreads = 1L) {
     for (i in seq_len(n_matmuls)) {
       x <- torch_matmul(x, x)
     }
-    c(torch_mean(x)$item())
+    torch_sum(x)$unsqueeze(1)
   }
 
   f_anvil <- jit(function(x) {
@@ -49,9 +49,8 @@ bench_matmul <- function(n_matmuls, matrix_size, device, nthreads = 1L) {
 }
 
 config <- expand.grid(
-  n_matmuls = c(10, 20, 40, 80, 160, 320, 640, 1280, 2560, 5320),
-  matrix_size = c(10, 100, 1000),
-  matrix_size = 100,
+  n_matmuls = c(10, 20, 40, 80, 160, 320, 640, 1280, 2560),
+  matrix_size = c(100, 200, 400, 800, 1600),
   device = "cpu",
   stringsAsFactors = FALSE,
   nthreads = 16L
