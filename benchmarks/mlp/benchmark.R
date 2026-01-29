@@ -66,10 +66,3 @@ setup <- function(reg_path, python_path, work_dir, seed = 42L) {
     callr::r(time_anvil, args = c(instance, list(seed = job$seed, compile_loop = compile_loop)))
   })
 }
-
-# Global config
-REPLS <- 2L
-EPOCHS <- 20L
-N_BATCHES <- 64L
-BATCH_SIZE <- 32L
-P <- 10L

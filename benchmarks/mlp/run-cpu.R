@@ -28,13 +28,13 @@ setup(
 
 problem_design <- expand.grid(
   list(
-    epochs = EPOCHS,
-    batch_size = BATCH_SIZE,
-    n_batches = N_BATCHES,
-    p = P,
+    epochs = 20L,
+    batch_size = c(32L, 64L, 128L),
+    n_batches = 100L,
+    p = 10L,
     device = "cpu",
-    n_layers = c(0L, 4L),
-    latent = c(10, 20, 40, 80)
+    n_layers = c(0L, 4L, 8L),
+    latent = c(10L, 20L, 40L, 80L, 160L)
   ),
   stringsAsFactors = FALSE
 )
@@ -48,7 +48,7 @@ addExperiments(
     pytorch = data.frame(),
     anvil = data.frame(compile_loop = c(TRUE, FALSE))
   ),
-  repls = REPLS
+  repls = 1L
 )
 
 tbl <- unwrap(getJobTable())

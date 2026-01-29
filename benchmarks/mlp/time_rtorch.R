@@ -60,9 +60,12 @@ time_rtorch <- function(epochs, batch_size, n_batches, n_layers, latent, p, devi
 
   opt <- optim_sgd(net$parameters, lr = lr)
   dataloader <- torch::dataloader(dataset, batch_size = batch_size, shuffle = FALSE)
+  
 
   # Warmup
   train(opt, dataloader, net, epochs = 2L)
+
+  if (device == "cuda") cuda_synchronize()
 
   t0 <- Sys.time()
   train(opt, dataloader, net, epochs = epochs)

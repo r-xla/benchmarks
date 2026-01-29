@@ -13,9 +13,11 @@ get_result <- function(ids, what) {
 
 summarize <- function(ids) {
   jt <- getJobTable(ids) |> unwrap()
-  jt <- jt[, c("n_layers", "batch_size", "n_batches", "device", "algorithm", "repl", "latent", "epochs", "p")]
+  jt <- jt[, c("n_layers", "batch_size", "n_batches", "device", "algorithm", "repl", "latent", "epochs", "p", "compile_loop")]
+  jt$algorithm <- ifelse(jt$algorithm == "anvil" & jt$compile_loop, "anvil_jit", jt$algorithm)
   jt$n <- jt$batch_size * jt$n_batches
   jt$time_total <- get_result(ids, "time")
+  jt$ncpus <- get_result(ids, "ncpus")
   jt$time_per_batch <- jt$time_total / (jt$n_batches * jt$epochs)
   jt$loss <- get_result(ids, "loss")
   return(jt)
