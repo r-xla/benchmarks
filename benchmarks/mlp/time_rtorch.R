@@ -1,12 +1,16 @@
 # Time R torch MLP training
 
-time_rtorch <- function(epochs, batch_size, n_batches, n_layers, latent, p, device, seed) {
+time_rtorch <- function(epochs, batch_size, n, n_layers, latent, p, device, seed) {
   library(torch)
   torch_set_num_threads(1L)
   torch_manual_seed(seed)
+  
+  if (n %% batch_size != 0L) {
+    stop("n must be divisible by batch_size")
+  }
+  n_batches <- n / batch_size
 
   lr <- 0.0001
-  n <- batch_size * n_batches
 
   make_network <- function(p, latent, n_layers) {
     if (n_layers == 0L) return(nn_linear(p, 1L))
@@ -78,7 +82,7 @@ time_rtorch <- function(epochs, batch_size, n_batches, n_layers, latent, p, devi
   
 if (FALSE) {
   time_rtorch(
-    epochs = 10L,
+    epochs = 2L,
     batch_size = 320L,
     n_batches = 64L,
     n_layers = 0L,

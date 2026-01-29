@@ -23,7 +23,7 @@ setup <- function(reg_path, python_path, work_dir, seed = 42L) {
     fun = function(
       epochs,
       batch_size,
-      n_batches,
+      n,
       n_layers,
       latent,
       p,
@@ -33,7 +33,7 @@ setup <- function(reg_path, python_path, work_dir, seed = 42L) {
       problem <- list(
         epochs = assert_int(epochs),
         batch_size = assert_int(batch_size),
-        n_batches = assert_int(n_batches),
+        n = assert_int(n),
         n_layers = assert_int(n_layers),
         latent = assert_int(latent),
         p = assert_int(p),

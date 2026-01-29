@@ -4,14 +4,17 @@ import math
 from torch import nn
 
 
-def time_pytorch(epochs, batch_size, n_batches, n_layers, latent, p, device, seed):
+def time_pytorch(epochs, batch_size, n, n_layers, latent, p, device, seed):
     torch.manual_seed(seed)
 
+    n = int(n)
     latent = int(latent)
     n_layers = int(n_layers)
     p = int(p)
-    n_batches = int(n_batches)
-    n = int(batch_size) * n_batches
+    if n % batch_size != 0:
+        raise ValueError("n must be divisible by batch_size")
+    n_batches = int(n / batch_size)
+
     epochs = int(epochs)
     batch_size = int(batch_size)
 
@@ -82,6 +85,6 @@ def time_pytorch(epochs, batch_size, n_batches, n_layers, latent, p, device, see
 
 if False:
     print(time_pytorch(
-        epochs=1, batch_size=32, n_batches=64, n_layers=4, latent=100,
+        epochs=1, batch_size=32, n=64, n_layers=4, latent=100,
         p=1000, device='cpu', seed=42
     ))

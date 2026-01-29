@@ -3,12 +3,15 @@
 # - compile_loop = TRUE: Whole training loop is JIT compiled using nv_while
 # - compile_loop = FALSE: Step function is JIT compiled, loop is in R
 
-time_anvil <- function(epochs, batch_size, n_batches, n_layers, latent, p, device, seed, compile_loop = TRUE) {
+time_anvil <- function(epochs, batch_size, n, n_layers, latent, p, device, seed, compile_loop = TRUE) {
   library(anvil)
   set.seed(seed)
+  if ((n %% batch_size) != 0L) {
+    stop("n must be divisible by batch_size")
+  }
+  n_batches <- n / batch_size
 
   lr <- nv_scalar(0.0001, "f32")
-  n <- batch_size * n_batches
 
   # Create data
   X <- matrix(rnorm(n * p), n, p)
