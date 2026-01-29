@@ -45,8 +45,8 @@ addExperiments(
   ),
   algo.designs = list(
     rtorch = data.frame(),
-    anvil = data.frame(compile_loop = c(TRUE, FALSE)),
-    pytorch = data.frame()
+    pytorch = data.frame(),
+    anvil = data.frame(compile_loop = c(TRUE, FALSE))
   ),
   repls = REPLS
 )

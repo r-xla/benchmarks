@@ -6,7 +6,6 @@ from torch import nn
 
 def time_pytorch(epochs, batch_size, n_batches, n_layers, latent, p, device, seed):
     torch.manual_seed(seed)
-    torch.set_num_threads(1)
 
     latent = int(latent)
     n_layers = int(n_layers)
@@ -52,7 +51,7 @@ def time_pytorch(epochs, batch_size, n_batches, n_layers, latent, p, device, see
                 opt.step()
 
     # Warmup
-    train_run(epochs=4)
+    train_run(epochs=2)
 
     if device.type == "cuda":
         torch.cuda.synchronize()
@@ -75,11 +74,13 @@ def time_pytorch(epochs, batch_size, n_batches, n_layers, latent, p, device, see
             loss = loss_fn(y_hat, y)
             mean_loss += loss.item()
     mean_loss /= n_batches
+    
+    ncpus = torch.get_num_threads()
 
-    return {'time': t, 'loss': mean_loss}
+    return {'time': t, 'loss': mean_loss, 'ncpus': ncpus}
 
 
-if __name__ == "__main__":
+if False:
     print(time_pytorch(
         epochs=1, batch_size=32, n_batches=64, n_layers=4, latent=100,
         p=1000, device='cpu', seed=42

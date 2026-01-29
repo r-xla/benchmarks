@@ -27,37 +27,22 @@ time_rtorch <- function(epochs, batch_size, n_batches, n_layers, latent, p, devi
   loss_fn <- nn_mse_loss()
   net$to(device = device)
 
-  dataset <- torch::dataset(
-    initialize = function(X, Y) {
-      self$X <- X
-      self$Y <- Y
-    },
-    .getbatch = function(i) {
-      list(x = self$X[i, drop = FALSE], y = self$Y[i, drop = FALSE])
-    },
-    .length = function() {
-      nrow(self$X)
-    }
-  )(X, Y)
+  dataset <- torch::tensor_dataset(X, Y)
 
-  train_run <- function(epochs) {
-    opt <- optim_sgd(net$parameters, lr = lr)
-    dataloader <- torch::dataloader(dataset, batch_size = batch_size, shuffle = FALSE)
-    t0 <- Sys.time()
+  train <- function(opt, dataloader, network, epochs) {
     for (epoch in seq(epochs)) {
       step <- 0L
       iter <- dataloader_make_iter(dataloader)
       while (step < length(dataloader)) {
         batch <- dataloader_next(iter)
-        y_hat <- net$forward(batch$x)
+        y_hat <- network$forward(batch[[1L]])
         opt$zero_grad()
-        loss <- loss_fn(y_hat, batch$y)
+        loss <- loss_fn(y_hat, batch[[2L]])
         loss$backward()
         opt$step()
         step <- step + 1L
       }
     }
-    as.numeric(difftime(Sys.time(), t0, units = "secs"))
   }
 
   eval_run <- function() {
@@ -73,9 +58,30 @@ time_rtorch <- function(epochs, batch_size, n_batches, n_layers, latent, p, devi
     mean_loss / n_batches
   }
 
-  # Warmup
-  train_run(2L)
+  opt <- optim_sgd(net$parameters, lr = lr)
+  dataloader <- torch::dataloader(dataset, batch_size = batch_size, shuffle = FALSE)
 
+  # Warmup
+  train(opt, dataloader, net, epochs = 2L)
+
+  t0 <- Sys.time()
+  train(opt, dataloader, net, epochs = epochs)
   if (device == "cuda") cuda_synchronize()
-  list(time = time, loss = eval_run())
+  time <- as.numeric(difftime(Sys.time(), t0, units = "secs"))
+  
+  list(time = time, loss = eval_run(), ncpus = torch::torch_get_num_threads())
+}
+
+  
+if (FALSE) {
+  time_rtorch(
+    epochs = 10L,
+    batch_size = 320L,
+    n_batches = 64L,
+    n_layers = 0L,
+    latent = 100L,
+    p = 10L,
+    device = "cpu",
+    seed = 42L
+  )
 }
