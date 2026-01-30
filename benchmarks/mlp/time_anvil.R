@@ -66,7 +66,7 @@ time_anvil <- function(epochs, batch_size, n, n_layers, latent, p, device, seed,
     mse(pred, y)
   }
 
-  step_sgd <- function(X_batch, Y_batch, params, lr) {
+  step_sgd_r <- function(X_batch, Y_batch, params, lr) {
     out <- value_and_gradient(loss_fn, wrt = "params")(X_batch, Y_batch, params)
     l <- out[[1L]]
     grads <- out[[2L]]$params
@@ -100,7 +100,7 @@ time_anvil <- function(epochs, batch_size, n, n_layers, latent, p, device, seed,
 
   if (compile_loop) {
 
-    train_anvil <- jit(function(X, Y, params, n_epochs, batch_size, n_batches, lr) {
+    train_anvil_r <- function(X, Y, params, n_epochs, batch_size, n_batches, lr) {
       out <- nv_while(
         list(epoch = 1L, batch = 1L, p = params, l = Inf),
         \(epoch, batch, p, l) epoch <= n_epochs,
@@ -108,7 +108,7 @@ time_anvil <- function(epochs, batch_size, n, n_layers, latent, p, device, seed,
           X_batch <- X[batch, ]
           Y_batch <- Y[batch, ]
 
-          out <- step_sgd(X_batch, Y_batch, p, lr)
+          out <- step_sgd_r(X_batch, Y_batch, p, lr)
 
           # Update batch and epoch counters
           next_batch <- nv_if(batch == n_batches, 1L, batch + 1L)
@@ -118,22 +118,23 @@ time_anvil <- function(epochs, batch_size, n, n_layers, latent, p, device, seed,
         }
       )
       list(loss = out$l, params = out$p)
-    }, static = c("batch_size", "n_batches"))
+    }
+
+    train_anvil <- jit(train_anvil_r, static = c("batch_size", "n_batches"))
 
     params_ <- init_model_params(hidden_dims)
 
     # precompile
-    train_anvil(X_anvil, Y_anvil, params_, n_epochs = nv_scalar(1L), batch_size = batch_size, n_batches = n_batches, lr = lr)
+    out <- train_anvil(X_anvil, Y_anvil, params_, n_epochs = nv_scalar(1L), batch_size = batch_size, n_batches = n_batches, lr = lr)
 
     # time compilation overhead
     t0 <- Sys.time()
-    browser()
-    xla(train_anvil, args = list(X = X_anvil, Y = Y_anvil, params = params_, n_epochs = nv_scalar(1L), batch_size = batch_size, n_batches = n_batches, lr = lr))
+    xla(train_anvil_r, args = list(X = X_anvil, Y = Y_anvil, params = params_, n_epochs = nv_scalar(1L), batch_size = batch_size, n_batches = n_batches, lr = lr))
     compile_time <- as.numeric(difftime(Sys.time(), t0, units = "secs"))
     # Sync
     as_array(out$loss)
   } else {
-    step_sgd <- jit(step_sgd, donate = c("X_batch", "Y_batch", "params"))
+    step_sgd <- jit(step_sgd_r, donate = c("X_batch", "Y_batch", "params"))
     
     train_anvil <- function(X, Y, params, n_epochs, batch_size, n_batches, lr) {
 
@@ -154,11 +155,11 @@ time_anvil <- function(epochs, batch_size, n, n_layers, latent, p, device, seed,
     Y_batch <- nv_tensor(Y[seq_len(batch_size), , drop = FALSE], "f32")
     params_ <- init_model_params(hidden_dims)
     # precompile
-    step_sgd(X_batch, Y_batch, params_, lr)
+    out <- step_sgd(X_batch, Y_batch, params_, lr)
     # time compilation overhead
     t0 <- Sys.time()
     browser()
-    xla(step_sgd, args = list(X_batch = X_batch, Y_batch = Y_batch, params = params_, lr = lr))
+    xla(step_sgd_r, args = list(X_batch = X_batch, Y_batch = Y_batch, params = params_, lr = lr))
     compile_time <- as.numeric(difftime(Sys.time(), t0, units = "secs"))
     # Sync
     as_array(out[[1L]])
