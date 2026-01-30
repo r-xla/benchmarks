@@ -100,7 +100,7 @@ time_anvil <- function(epochs, batch_size, n, n_layers, latent, p, device, seed,
 
   if (compile_loop) {
 
-    train_anvil <- jit(function(X, Y, params, n_epochs, batch_size, n_batches) {
+    train_anvil <- jit(function(X, Y, params, n_epochs, batch_size, n_batches, lr) {
       out <- nv_while(
         list(epoch = 1L, batch = 1L, p = params, l = Inf),
         \(epoch, batch, p, l) epoch <= n_epochs,
@@ -122,20 +122,20 @@ time_anvil <- function(epochs, batch_size, n, n_layers, latent, p, device, seed,
 
     params_ <- init_model_params(hidden_dims)
 
-    out <- train_anvil(X_anvil, Y_anvil, params_, n_epochs = nv_scalar(1L), batch_size = batch_size, n_batches = n_batches)
-    
-    
+    # precompile
+    train_anvil(X_anvil, Y_anvil, params_, n_epochs = nv_scalar(1L), batch_size = batch_size, n_batches = n_batches, lr = lr)
 
-    # JIT
+    # time compilation overhead
     t0 <- Sys.time()
-    graph <- trace_fn()
+    browser()
+    xla(train_anvil, args = list(X = X_anvil, Y = Y_anvil, params = params_, n_epochs = nv_scalar(1L), batch_size = batch_size, n_batches = n_batches, lr = lr))
     compile_time <- as.numeric(difftime(Sys.time(), t0, units = "secs"))
     # Sync
     as_array(out$loss)
   } else {
     step_sgd <- jit(step_sgd, donate = c("X_batch", "Y_batch", "params"))
     
-    train_anvil <- function(X, Y, params, n_epochs, batch_size, n_batches) {
+    train_anvil <- function(X, Y, params, n_epochs, batch_size, n_batches, lr) {
 
       for (epoch in seq_len(n_epochs)) {
         for (b in seq_len(n_batches)) {
@@ -153,9 +153,12 @@ time_anvil <- function(epochs, batch_size, n, n_layers, latent, p, device, seed,
     X_batch <- nv_tensor(X[seq_len(batch_size), , drop = FALSE], "f32")
     Y_batch <- nv_tensor(Y[seq_len(batch_size), , drop = FALSE], "f32")
     params_ <- init_model_params(hidden_dims)
-    # JIT
+    # precompile
+    step_sgd(X_batch, Y_batch, params_, lr)
+    # time compilation overhead
     t0 <- Sys.time()
-    out <- step_sgd(X_batch, Y_batch, params_, lr)
+    browser()
+    xla(step_sgd, args = list(X_batch = X_batch, Y_batch = Y_batch, params = params_, lr = lr))
     compile_time <- as.numeric(difftime(Sys.time(), t0, units = "secs"))
     # Sync
     as_array(out[[1L]])
@@ -167,9 +170,9 @@ time_anvil <- function(epochs, batch_size, n, n_layers, latent, p, device, seed,
 
   t0 <- Sys.time()
   result <- if (compile_loop) {
-    train_anvil(X_anvil, Y_anvil, params, n_epochs = nv_scalar(epochs), batch_size = batch_size, n_batches = n_batches)
+    train_anvil(X_anvil, Y_anvil, params, n_epochs = nv_scalar(epochs), batch_size = batch_size, n_batches = n_batches, lr = lr)
   } else {
-    train_anvil(X, Y, params, n_epochs = epochs, batch_size = batch_size, n_batches = n_batches)
+    train_anvil(X, Y, params, n_epochs = epochs, batch_size = batch_size, n_batches = n_batches, lr = lr)
   }
   # Need to sync once we have async XLA API
   # TODO: Does this sync the whole stream? We need an API like torch_cuda_synchronize() to do this properly I think.
