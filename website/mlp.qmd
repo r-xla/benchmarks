@@ -11,6 +11,9 @@ TODO:
 * [ ] Include anvil async timing when available.
 
 
+## CPU Results
+
+
 ![](benchmarks/mlp/mlp_benchmark.png){width=100%}
 
 ![](benchmarks/mlp/mlp_amortize.png){width=100%}
