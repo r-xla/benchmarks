@@ -18,6 +18,7 @@ summarize <- function(ids) {
   jt$time_total <- get_result(ids, "time")
   jt$n_batches <- jt$n / jt$batch_size
   jt$ncpus <- get_result(ids, "ncpus")
+  jt$compile_time <- get_result(ids, "compile_time")
   jt$time_per_batch <- jt$time_total / (jt$n_batches * jt$epochs)
   jt$loss <- get_result(ids, "loss")
   return(jt)
