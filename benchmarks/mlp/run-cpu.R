@@ -36,8 +36,8 @@ problem_design <- expand.grid(
   list(
     epochs = 10L,
     # batch_size must divide 1024 (n)
-    #batch_size = c(32L, 64L, 128L),
-    batch_size = 32L,
+    batch_size = c(32L, 64L, 128L),
+    #batch_size = 32L,
     n = 256 * 4L,
     p = 10L,
     device = "cpu",

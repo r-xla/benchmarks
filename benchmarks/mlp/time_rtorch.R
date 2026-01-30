@@ -2,7 +2,6 @@
 
 time_rtorch <- function(epochs, batch_size, n, n_layers, latent, p, device, seed) {
   library(torch)
-  torch_set_num_threads(1L)
   torch_manual_seed(seed)
   
   if (n %% batch_size != 0L) {
