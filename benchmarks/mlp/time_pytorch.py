@@ -1,6 +1,7 @@
 import torch
 import time
 import math
+import os
 from torch import nn
 
 
@@ -78,7 +79,12 @@ def time_pytorch(epochs, batch_size, n, n_layers, latent, p, device, seed):
             mean_loss += loss.item()
     mean_loss /= n_batches
     
-    return {'time': t, 'loss': mean_loss}
+    affinity = os.sched_getaffinity(0)
+    # get number of elements in affinity set
+    ncores = len(affinity)
+    n_params = sum(p.numel() for p in net.parameters())
+
+    return {'time': t, 'loss': mean_loss, 'n_params': n_params, 'ncores': ncores, 'affinity': affinity, 'compile_time': 0}
 
 
 if False:

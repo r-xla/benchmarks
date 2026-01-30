@@ -75,7 +75,10 @@ time_rtorch <- function(epochs, batch_size, n, n_layers, latent, p, device, seed
   if (device == "cuda") cuda_synchronize()
   time <- as.numeric(difftime(Sys.time(), t0, units = "secs"))
   
-  list(time = time, loss = eval_run())
+  n_params <- sum(sapply(net$parameters, function(p) prod(dim(p))))
+  
+  n_cores <- length(parallel::mcaffinity())
+  list(time = time, loss = eval_run(), n_params = n_params, n_cores = n_cores, compile_time = 0)
 }
 
   

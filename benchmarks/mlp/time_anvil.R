@@ -121,7 +121,9 @@ time_anvil <- function(epochs, batch_size, n, n_layers, latent, p, device, seed,
     }, static = c("batch_size", "n_batches"))
 
     # JIT
+    t0 <- Sys.time()
     out <- train_anvil(X_anvil, Y_anvil, init_model_params(hidden_dims), n_epochs = nv_scalar(1L), batch_size = batch_size, n_batches = n_batches)
+    compile_time <- as.numeric(difftime(Sys.time(), t0, units = "secs"))
     # Sync
     as_array(out$loss)
   } else {
@@ -145,7 +147,9 @@ time_anvil <- function(epochs, batch_size, n, n_layers, latent, p, device, seed,
     X_batch <- nv_tensor(X[seq_len(batch_size), , drop = FALSE], "f32")
     Y_batch <- nv_tensor(Y[seq_len(batch_size), , drop = FALSE], "f32")
     # JIT
+    t0 <- Sys.time()
     out <- step_sgd(X_batch, Y_batch, init_model_params(hidden_dims), lr)
+    compile_time <- as.numeric(difftime(Sys.time(), t0, units = "secs"))
     # Sync
     as_array(out[[1L]])
   }
@@ -167,8 +171,11 @@ time_anvil <- function(epochs, batch_size, n, n_layers, latent, p, device, seed,
   
   eval_loss <- eval_anvil(X_anvil, Y_anvil, result$params, batch_size = batch_size, n_batches = n_batches)
   eval_loss <- as_array(eval_loss)
+  
+  n_params <- sum(sapply(flatten(result$params), function(p) prod(shape(p))))
 
-  list(time = time, loss = eval_loss)
+  n_cores <- length(parallel::mcaffinity())
+  list(time = time, loss = eval_loss, n_params = n_params, n_cores = n_cores, compile_time = compile_time)
 }
 if (FALSE) {
   args <- list(
