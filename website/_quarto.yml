@@ -1,19 +1,16 @@
 project:
   type: website
+  output-dir: _site
 
 website:
-  title: "anvil-bench"
+  title: "Anvil Benchmarks"
   navbar:
     left:
-      - href: index.qmd
-        text: Home
-      - about.qmd
+      - href: mlp.qmd
+        text: MLP
 
 format:
   html:
     theme: cosmo
     css: styles.css
     toc: true
-
-
-

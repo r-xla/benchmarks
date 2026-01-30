@@ -2,16 +2,8 @@
 title: "About"
 ---
 
+This website presents benchmark results for [anvil](https://github.com/r-xla/anvil), an R package providing an XLA backend.
 
-Benchmark that multiplies a `100x100` matrix n times with itself.
+The benchmarks compare anvil against PyTorch and R torch on standard deep learning workloads to track performance across releases.
 
-```{r, include = FALSE}
-library(ggplot2)
-tbl <- readRDS(here("results", "matmul.rds"))
-ggplot(tbl, aes(x = n_matmuls, y = time)) +
-  facet_wrap(~ framework, scales = "free_y") +
-  geom_point() +
-  geom_line() +
-  labs(x = "Number of matrix multiplications", y = "Time (s)") +
-  theme_minimal()
-```
+Source code: [github.com/r-xla/benchmarks](https://github.com/r-xla/benchmarks)

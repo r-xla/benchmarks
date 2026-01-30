@@ -49,3 +49,5 @@ po/*~
 rsconnect/
 
 registries/*
+
+registry-*/

@@ -7,6 +7,10 @@ PLATFORM ?= linux/amd64
 PROGRESS ?= plain
 GITHUB_PAT_FILE ?= $(HOME)/.github_pat
 
+BACKEND ?= cpu
+BENCHMARK ?= matmul
+NPROC ?= 1
+
 .PHONY: env-cpu
 env-cpu:
 	@echo "Building $(IMAGE_TAG) for $(PLATFORM) using $(DOCKERFILE)"
@@ -20,5 +24,12 @@ env-cpu:
 		--platform $(PLATFORM) \
 		--progress=$(PROGRESS) \
 		-f $(DOCKERFILE) -t $(IMAGE_TAG) .
+
+bench:
+    @echo Running benchmark $(BENCHMARK) on backend $(BACKEND)
+    docker r
+    taskset -c $(NRPOC) Rscript -e benchmarks
+
+
 
 

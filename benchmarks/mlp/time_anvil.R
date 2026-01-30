@@ -1,0 +1,207 @@
+# Time anvil MLP training
+# Supports two modes:
+# - compile_loop = TRUE: Whole training loop is JIT compiled using nv_while
+# - compile_loop = FALSE: Step function is JIT compiled, loop is in R
+
+time_anvil <- function(epochs, batch_size, n, n_layers, latent, p, device, seed, compile_loop = TRUE) {
+  library(anvil)
+  set.seed(seed)
+  if ((n %% batch_size) != 0L) {
+    stop("n must be divisible by batch_size")
+  }
+  n_batches <- n / batch_size
+
+  lr <- nv_scalar(0.0001, "f32")
+
+  # Create data
+  X <- matrix(rnorm(n * p), n, p)
+  beta <- matrix(rnorm(p * 1L), p, 1L)
+  Y <- X %*% beta + matrix(rnorm(n * 1L, sd = 0.1), n, 1L)
+
+  # Build hidden dimensions
+  hidden_dims <- c(p, rep(latent, n_layers), 1L)
+
+  # Linear layer
+  linear <- function(x, params) {
+    # matmul is batched
+    out <- x %*% params$W
+    # out has shape (n_batch, d_out)
+    # bias has shape (1, d_out) -> broadcast 
+    out + nv_broadcast_to(params$b, shape = shape(out))
+  }
+
+  init_linear_params <- function(nin, nout) {
+    list(
+      W = nv_tensor(matrix(rnorm(nin * nout) * sqrt(2.0 / nin), nin, nout), dtype = "f32"),
+      b = nv_tensor(matrix(0, 1L, nout), dtype = "f32")
+    )
+  }
+  
+    relu <- function(x) {
+    nv_max(x, 0)
+  }
+
+  model <- function(x, params) {
+    for (p in params[-length(params)]) {
+      x <- linear(x, p)
+      x <- relu(x)
+    }
+    linear(x, params[[length(params)]])
+  }
+
+  init_model_params <- function(hidden) {
+    params <- list()
+    for (i in seq_along(hidden[-1L])) {
+      params[[i]] <- init_linear_params(hidden[i], hidden[i + 1L])
+    }
+    params
+  }
+
+  mse <- function(pred, y) {
+    mean((pred - y)^2)
+  }
+
+  loss_fn <- function(x, y, params) {
+    pred <- model(x, params)
+    mse(pred, y)
+  }
+
+  step_sgd_r <- function(X_batch, Y_batch, params, lr) {
+    out <- value_and_gradient(loss_fn, wrt = "params")(X_batch, Y_batch, params)
+    l <- out[[1L]]
+    grads <- out[[2L]]$params
+    params <- Map(function(p_layer, g_layer) {
+      Map(\(p, g) p - lr * g, p_layer, g_layer)
+    }, params, grads)
+    list(l, params)
+  }
+  
+  eval_anvil <- jit(function(X, Y, params, batch_size, n_batches) {
+    out <- nv_while(
+      list(batch = 1L, total_loss = 0.0),
+      \(batch, total_loss) batch <= n_batches,
+      \(batch, total_loss) {
+        X_batch <- X[batch, ]
+        Y_batch <- Y[batch, ]
+        pred <- model(X_batch, params)
+        loss <- mse(pred, Y_batch)
+        list(batch = batch + 1L, total_loss = total_loss + loss)
+      }
+    )
+    out$total_loss / n_batches
+  }, static = c("n_batches", "batch_size"))
+  
+  X_anvil <- jit_eval({
+    nv_reshape(nv_tensor(X, dtype = "f32"), shape = c(n_batches, batch_size, shape(X)[-1L]))
+  })
+  Y_anvil <- jit_eval({
+    nv_reshape(nv_tensor(Y, dtype = "f32"), shape = c(n_batches, batch_size, shape(Y)[-1L]))
+  })
+
+  if (compile_loop) {
+
+    train_anvil_r <- function(X, Y, params, n_epochs, batch_size, n_batches, lr) {
+      out <- nv_while(
+        list(epoch = 1L, batch = 1L, p = params, l = Inf),
+        \(epoch, batch, p, l) epoch <= n_epochs,
+        \(epoch, batch, p, l) {
+          X_batch <- X[batch, ]
+          Y_batch <- Y[batch, ]
+
+          out <- step_sgd_r(X_batch, Y_batch, p, lr)
+
+          # Update batch and epoch counters
+          next_batch <- nv_if(batch == n_batches, 1L, batch + 1L)
+          next_epoch <- nv_if(batch == n_batches, epoch + 1L, epoch)
+
+          list(epoch = next_epoch, batch = next_batch, p = out[[2L]], l = out[[1L]])
+        }
+      )
+      list(loss = out$l, params = out$p)
+    }
+
+    train_anvil <- jit(train_anvil_r, static = c("batch_size", "n_batches"))
+
+    params_ <- init_model_params(hidden_dims)
+
+    # precompile
+    out <- train_anvil(X_anvil, Y_anvil, params_, n_epochs = nv_scalar(1L), batch_size = batch_size, n_batches = n_batches, lr = lr)
+
+    # time compilation overhead
+    t0 <- Sys.time()
+    xla(train_anvil_r, args = list(X = X_anvil, Y = Y_anvil, params = params_, n_epochs = nv_scalar(1L), batch_size = batch_size, n_batches = n_batches, lr = lr))
+    compile_time <- as.numeric(difftime(Sys.time(), t0, units = "secs"))
+    # Sync
+    as_array(out$loss)
+  } else {
+    step_sgd <- jit(step_sgd_r, donate = c("X_batch", "Y_batch", "params"))
+    
+    train_anvil <- function(X, Y, params, n_epochs, batch_size, n_batches, lr) {
+
+      for (epoch in seq_len(n_epochs)) {
+        for (b in seq_len(n_batches)) {
+          idx_start <- (b - 1L) * batch_size + 1L
+          idx_end <- b * batch_size
+          X_batch <- nv_tensor(X[idx_start:idx_end, , drop = FALSE], "f32")
+          Y_batch <- nv_tensor(Y[idx_start:idx_end, , drop = FALSE], "f32")
+          out <- step_sgd(X_batch, Y_batch, params, lr)
+          params <- out[[2L]]
+        }
+      }
+      list(loss = out[[1L]], params = params)
+    }
+    
+    X_batch <- nv_tensor(X[seq_len(batch_size), , drop = FALSE], "f32")
+    Y_batch <- nv_tensor(Y[seq_len(batch_size), , drop = FALSE], "f32")
+    params_ <- init_model_params(hidden_dims)
+    # precompile
+    out <- step_sgd(X_batch, Y_batch, params_, lr)
+    # time compilation overhead
+    t0 <- Sys.time()
+    browser()
+    xla(step_sgd_r, args = list(X_batch = X_batch, Y_batch = Y_batch, params = params_, lr = lr))
+    compile_time <- as.numeric(difftime(Sys.time(), t0, units = "secs"))
+    # Sync
+    as_array(out[[1L]])
+  }
+
+  params <- init_model_params(hidden_dims)
+  # Sync
+  as_array(params[[1L]][[1L]])
+
+  t0 <- Sys.time()
+  result <- if (compile_loop) {
+    train_anvil(X_anvil, Y_anvil, params, n_epochs = nv_scalar(epochs), batch_size = batch_size, n_batches = n_batches, lr = lr)
+  } else {
+    train_anvil(X, Y, params, n_epochs = epochs, batch_size = batch_size, n_batches = n_batches, lr = lr)
+  }
+  # Need to sync once we have async XLA API
+  # TODO: Does this sync the whole stream? We need an API like torch_cuda_synchronize() to do this properly I think.
+  final_loss <- anvil::as_array(result$loss)
+  time <- as.numeric(difftime(Sys.time(), t0, units = "secs"))
+  
+  eval_loss <- eval_anvil(X_anvil, Y_anvil, result$params, batch_size = batch_size, n_batches = n_batches)
+  eval_loss <- as_array(eval_loss)
+  
+  n_params <- sum(sapply(flatten(result$params), function(p) prod(shape(p))))
+
+  n_cores <- length(parallel::mcaffinity())
+  list(time = time, loss = eval_loss, n_params = n_params, n_cores = n_cores, compile_time = compile_time)
+}
+if (FALSE) {
+  args <- list(
+    epochs = 10L,
+    batch_size = 32L,
+    n= 640,
+    n_layers = 0L,
+    latent = 100L,
+    p = 10L,
+    device = "cpu",
+    seed = 42L
+  )
+
+  r1 <- do.call(time_anvil, c(args, list(compile_loop = TRUE)))
+  r2 <- do.call(time_anvil, c(args, list(compile_loop = FALSE)))
+  print(r1)
+  print(r2)
+}

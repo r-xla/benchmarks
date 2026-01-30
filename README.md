@@ -1,29 +1,17 @@
 # benchmarks
 
-## Building the Docker Image
+Benchmarks for the {anvil} package.
 
-For CPU:
+## Benchmarks
 
-```bash
-make env-cpu
-```
+* mlp: Trains an MLP in PyTorch, R torch and anvil.
 
-## Downloading the Image
+## Controlling CPU Threads
 
-```bash
-docker pull sebffischer/anvil-bench-cpu:latest
-```
+Unfortunately, there is no easy way to control the number of CPU threads for XLA within R.
+Therefore, we start the R processes with `taskset -c 0-{nthreads - 1} R` and then run the benchmark.
+The child processes will inherit the number of threads from the parent process.
 
-## Running the Image
+## Environments
 
-Assuming `benchmarks` is in your home directory, you can start the container as follows:
-
-```bash
-docker run -it --rm -v ~/benchmarks:/mnt/data/benchmarks sebffischer/anvil-bench-cpu:latest
-```
-
-## Running the Benchmark
-
-```bash
-Rscript benchmarks/matmul.R
-```
+For benchmarking, we use the `anvil-cpu-bench` and `anvil-cuda-bench` images as defined in https://github.com/r-xla/docker.
