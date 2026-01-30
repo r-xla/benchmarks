@@ -1,0 +1,9 @@
+---
+title: "About"
+---
+
+This website presents benchmark results for [anvil](https://github.com/r-xla/anvil), an R package providing an XLA backend.
+
+The benchmarks compare anvil against PyTorch and R torch on standard deep learning workloads to track performance across releases.
+
+Source code: [github.com/r-xla/benchmarks](https://github.com/r-xla/benchmarks)

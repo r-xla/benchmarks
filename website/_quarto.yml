@@ -1,0 +1,16 @@
+project:
+  type: website
+  output-dir: _site
+
+website:
+  title: "Anvil Benchmarks"
+  navbar:
+    left:
+      - href: mlp.qmd
+        text: MLP
+
+format:
+  html:
+    theme: cosmo
+    css: styles.css
+    toc: true
