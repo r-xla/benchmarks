@@ -168,7 +168,7 @@ time_anvil <- function(epochs, batch_size, n, n_layers, latent, p, device, seed,
   eval_loss <- eval_anvil(X_anvil, Y_anvil, result$params, batch_size = batch_size, n_batches = n_batches)
   eval_loss <- as_array(eval_loss)
 
-  list(time = time, loss = eval_loss, ncpus = length(parallel::mcaffinity()))
+  list(time = time, loss = eval_loss)
 }
 if (FALSE) {
   args <- list(

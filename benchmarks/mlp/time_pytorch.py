@@ -78,9 +78,7 @@ def time_pytorch(epochs, batch_size, n, n_layers, latent, p, device, seed):
             mean_loss += loss.item()
     mean_loss /= n_batches
     
-    ncpus = torch.get_num_threads()
-
-    return {'time': t, 'loss': mean_loss, 'ncpus': ncpus}
+    return {'time': t, 'loss': mean_loss}
 
 
 if False:

@@ -75,7 +75,7 @@ time_rtorch <- function(epochs, batch_size, n, n_layers, latent, p, device, seed
   if (device == "cuda") cuda_synchronize()
   time <- as.numeric(difftime(Sys.time(), t0, units = "secs"))
   
-  list(time = time, loss = eval_run(), ncpus = torch::torch_get_num_threads())
+  list(time = time, loss = eval_run())
 }
 
   
