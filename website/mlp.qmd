@@ -5,6 +5,7 @@ title: "MLP Benchmark"
 Source code for benchmark: https://github.com/r-xla/benchmarks/benchmarks/mlp.
 
 TODO:
+
 * [ ] Repeat the measurement more often; currently only one REPL.
 * [ ] Add CUDA benchmarks.
 * [ ] Include anvil async timing when available.
