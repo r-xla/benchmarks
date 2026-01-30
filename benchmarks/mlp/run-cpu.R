@@ -16,7 +16,13 @@ if (PYTHON_PATH == "") {
 REG_PATH <- here("benchmarks", "mlp", "registry-cpu")
 
 if (dir.exists(REG_PATH)) {
-  stop("Registry already exists. Delete it to run the benchmark again.")
+  # Ask whether to delete the registry
+  answer <- readline("Registry already exists. Delete it to run the benchmark again? (y/n)")
+  if (answer == "y") {
+    unlink(REG_PATH, recursive = TRUE)
+  } else {
+    stop("Registry already exists. Delete it to run the benchmark again.")
+  }
 }
 
 setup(
@@ -30,8 +36,8 @@ problem_design <- expand.grid(
   list(
     epochs = 10L,
     # batch_size must divide 1024 (n)
-    batch_size = c(32L, 64L, 128L),
-    #batch_size = 32L,
+    #batch_size = c(32L, 64L, 128L),
+    batch_size = 32L,
     n = 256 * 4L,
     p = 10L,
     device = "cpu",

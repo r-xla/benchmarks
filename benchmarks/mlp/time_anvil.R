@@ -37,12 +37,7 @@ time_anvil <- function(epochs, batch_size, n, n_layers, latent, p, device, seed,
     )
   }
   
-  batch_tensor <- function(batch_size, n_batches) {
-    nv_iota(1L, c(n_batches, batch_size), dtype = "i32") |> 
-      nv_reshape(shape = c(n_batches, batch_size))
-  }
-
-  relu <- function(x) {
+    relu <- function(x) {
     nv_max(x, 0)
   }
 
@@ -74,7 +69,7 @@ time_anvil <- function(epochs, batch_size, n, n_layers, latent, p, device, seed,
   step_sgd <- function(X_batch, Y_batch, params, lr) {
     out <- value_and_gradient(loss_fn, wrt = "params")(X_batch, Y_batch, params)
     l <- out[[1L]]
-    grads <- out[[2L]][[1L]]
+    grads <- out[[2L]]$params
     params <- Map(function(p_layer, g_layer) {
       Map(\(p, g) p - lr * g, p_layer, g_layer)
     }, params, grads)
@@ -82,15 +77,12 @@ time_anvil <- function(epochs, batch_size, n, n_layers, latent, p, device, seed,
   }
   
   eval_anvil <- jit(function(X, Y, params, batch_size, n_batches) {
-    indices <- batch_tensor(batch_size, n_batches)
     out <- nv_while(
       list(batch = 1L, total_loss = 0.0),
       \(batch, total_loss) batch <= n_batches,
       \(batch, total_loss) {
-        batch_indices <- indices[batch, ]
-        print(batch_indices)
-        X_batch <- X[batch_indices, ]
-        Y_batch <- Y[batch_indices, ]
+        X_batch <- X[batch, ]
+        Y_batch <- Y[batch, ]
         pred <- model(X_batch, params)
         loss <- mse(pred, Y_batch)
         list(batch = batch + 1L, total_loss = total_loss + loss)
@@ -99,22 +91,22 @@ time_anvil <- function(epochs, batch_size, n, n_layers, latent, p, device, seed,
     out$total_loss / n_batches
   }, static = c("n_batches", "batch_size"))
   
-  X_anvil <- nv_tensor(X, dtype = "f32")
-  Y_anvil <- nv_tensor(Y, dtype = "f32")
+  X_anvil <- jit_eval({
+    nv_reshape(nv_tensor(X, dtype = "f32"), shape = c(n_batches, batch_size, shape(X)[-1L]))
+  })
+  Y_anvil <- jit_eval({
+    nv_reshape(nv_tensor(Y, dtype = "f32"), shape = c(n_batches, batch_size, shape(Y)[-1L]))
+  })
 
   if (compile_loop) {
 
     train_anvil <- jit(function(X, Y, params, n_epochs, batch_size, n_batches) {
-      indices <- batch_tensor(batch_size, n_batches)
-
       out <- nv_while(
         list(epoch = 1L, batch = 1L, p = params, l = Inf),
         \(epoch, batch, p, l) epoch <= n_epochs,
         \(epoch, batch, p, l) {
-          # Get indices for current batch and slice X, y
-          batch_indices <- indices[batch, ]
-          X_batch <- X[batch_indices, ]
-          Y_batch <- Y[batch_indices, ]
+          X_batch <- X[batch, ]
+          Y_batch <- Y[batch, ]
 
           out <- step_sgd(X_batch, Y_batch, p, lr)
 
@@ -126,10 +118,10 @@ time_anvil <- function(epochs, batch_size, n, n_layers, latent, p, device, seed,
         }
       )
       list(loss = out$l, params = out$p)
-    }, static = c("n_epochs", "batch_size", "n_batches"))
+    }, static = c("batch_size", "n_batches"))
 
     # JIT
-    out <- train_anvil(X_anvil, Y_anvil, init_model_params(hidden_dims), n_epochs = 1L, batch_size = batch_size, n_batches = n_batches)
+    out <- train_anvil(X_anvil, Y_anvil, init_model_params(hidden_dims), n_epochs = nv_scalar(1L), batch_size = batch_size, n_batches = n_batches)
     # Sync
     as_array(out$loss)
   } else {
@@ -164,7 +156,7 @@ time_anvil <- function(epochs, batch_size, n, n_layers, latent, p, device, seed,
 
   t0 <- Sys.time()
   result <- if (compile_loop) {
-    train_anvil(X_anvil, Y_anvil, params, n_epochs = epochs, batch_size = batch_size, n_batches = n_batches)
+    train_anvil(X_anvil, Y_anvil, params, n_epochs = nv_scalar(epochs), batch_size = batch_size, n_batches = n_batches)
   } else {
     train_anvil(X, Y, params, n_epochs = epochs, batch_size = batch_size, n_batches = n_batches)
   }
@@ -181,8 +173,8 @@ time_anvil <- function(epochs, batch_size, n, n_layers, latent, p, device, seed,
 if (FALSE) {
   args <- list(
     epochs = 10L,
-    batch_size = 320L,
-    n_batches = 64L,
+    batch_size = 32L,
+    n= 640,
     n_layers = 0L,
     latent = 100L,
     p = 10L,

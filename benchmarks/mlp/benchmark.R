@@ -63,6 +63,7 @@ setup <- function(reg_path, python_path, work_dir, seed = 42L) {
   })
 
   addAlgorithm("anvil", fun = function(instance, job, compile_loop, ...) {
+    #do.call(time_anvil, args = c(instance, list(seed = job$seed, compile_loop = compile_loop)))
     callr::r(time_anvil, args = c(instance, list(seed = job$seed, compile_loop = compile_loop)))
   })
 }
