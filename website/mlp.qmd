@@ -4,6 +4,24 @@ title: "MLP Benchmark"
 
 Source code for benchmark: [https://github.com/r-xla/benchmarks/tree/main/benchmarks/mlp](https://github.com/r-xla/benchmarks/tree/main/benchmarks/mlp).
 
+## Experiment Setup
+
+The benchmark compares three implementations of an MLP training loop: **PyTorch**, **R torch**, and **anvil** (with both compiled loop and R loop variants).
+The task is a synthetic regression problem where random normal data is generated with a linear target plus noise.
+
+The number of threads is set per benchmark via `taskset -c 0-7`, i.e. 8 logical cores were available.
+
+**CPU benchmark parameters:**
+
+Besides the parameters apparent from the plot, we used:
+
+- **Input features (p):** 10
+- **Optimizer:** SGD (lr = 0.0001)
+- **Loss:** MSE
+- **Repetitions**: 1
+
+Timing excludes the warmup phase. For anvil, compilation time is recorded separately.
+
 TODO:
 
 * [ ] Repeat the measurement more often; currently only one REPL.
@@ -15,5 +33,7 @@ TODO:
 
 
 ![](benchmarks/mlp/mlp_benchmark.png){width=100%}
+
+Below, we show exemplarily how the jit-compilation overhead amortizes over time.
 
 ![](benchmarks/mlp/mlp_amortize.png){width=100%}

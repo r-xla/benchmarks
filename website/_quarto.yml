@@ -8,6 +8,9 @@ website:
     left:
       - href: mlp.qmd
         text: MLP
+    right:
+      - icon: github
+        href: https://github.com/r-xla/benchmarks
 
 format:
   html:
