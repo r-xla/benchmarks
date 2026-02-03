@@ -11,7 +11,7 @@ time_anvil <- function(epochs, batch_size, n, n_layers, latent, p, device, seed,
   }
   n_batches <- n / batch_size
 
-  lr <- nv_scalar(0.0001, "f32")
+  lr <- nv_scalar(0.0001, "f32", device = device)
 
   # Create data
   X <- matrix(rnorm(n * p), n, p)
@@ -32,8 +32,8 @@ time_anvil <- function(epochs, batch_size, n, n_layers, latent, p, device, seed,
 
   init_linear_params <- function(nin, nout) {
     list(
-      W = nv_tensor(matrix(rnorm(nin * nout) * sqrt(2.0 / nin), nin, nout), dtype = "f32"),
-      b = nv_tensor(matrix(0, 1L, nout), dtype = "f32")
+      W = nv_tensor(matrix(rnorm(nin * nout) * sqrt(2.0 / nin), nin, nout), dtype = "f32", device = device),
+      b = nv_tensor(matrix(0, 1L, nout), dtype = "f32", device = device)
     )
   }
   
@@ -92,10 +92,10 @@ time_anvil <- function(epochs, batch_size, n, n_layers, latent, p, device, seed,
   }, static = c("n_batches", "batch_size"))
   
   X_anvil <- jit_eval({
-    nv_reshape(nv_tensor(X, dtype = "f32"), shape = c(n_batches, batch_size, shape(X)[-1L]))
+    nv_reshape(nv_tensor(X, dtype = "f32", device = device), shape = c(n_batches, batch_size, shape(X)[-1L]))
   })
   Y_anvil <- jit_eval({
-    nv_reshape(nv_tensor(Y, dtype = "f32"), shape = c(n_batches, batch_size, shape(Y)[-1L]))
+    nv_reshape(nv_tensor(Y, dtype = "f32", device = device), shape = c(n_batches, batch_size, shape(Y)[-1L]))
   })
 
   if (compile_loop) {
@@ -142,8 +142,8 @@ time_anvil <- function(epochs, batch_size, n, n_layers, latent, p, device, seed,
         for (b in seq_len(n_batches)) {
           idx_start <- (b - 1L) * batch_size + 1L
           idx_end <- b * batch_size
-          X_batch <- nv_tensor(X[idx_start:idx_end, , drop = FALSE], "f32")
-          Y_batch <- nv_tensor(Y[idx_start:idx_end, , drop = FALSE], "f32")
+          X_batch <- nv_tensor(X[idx_start:idx_end, , drop = FALSE], "f32", device = device)
+          Y_batch <- nv_tensor(Y[idx_start:idx_end, , drop = FALSE], "f32", device = device)
           out <- step_sgd(X_batch, Y_batch, params, lr)
           params <- out[[2L]]
         }
@@ -151,8 +151,8 @@ time_anvil <- function(epochs, batch_size, n, n_layers, latent, p, device, seed,
       list(loss = out[[1L]], params = params)
     }
     
-    X_batch <- nv_tensor(X[seq_len(batch_size), , drop = FALSE], "f32")
-    Y_batch <- nv_tensor(Y[seq_len(batch_size), , drop = FALSE], "f32")
+    X_batch <- nv_tensor(X[seq_len(batch_size), , drop = FALSE], "f32", device = device)
+    Y_batch <- nv_tensor(Y[seq_len(batch_size), , drop = FALSE], "f32", device = device)
     params_ <- init_model_params(hidden_dims)
     # precompile
     out <- step_sgd(X_batch, Y_batch, params_, lr)

@@ -21,19 +21,23 @@ Besides the parameters apparent from the plot, we used:
 - **Repetitions**: 10
 
 Timing excludes the warmup phase. For anvil, compilation time is recorded separately.
+All reported values are medians across replications.
 
 TODO:
 
-* [ ] Repeat the measurement more often; currently only one REPL.
 * [ ] Add CUDA benchmarks.
 * [ ] Include anvil async timing when available.
 
 
 ## CPU Results
 
+The barplot below shows wall time for 10 epochs of training, decomposed into runtime (solid color) and compilation overhead (lighter shade).
+Compilation only applies to the anvil variants; for torch and PyTorch it is zero.
 
 ![](benchmarks/mlp/mlp_benchmark.png){width=100%}
 
-Below, we show exemplarily how the jit-compilation overhead amortizes over time.
+The amortization plot shows the effective per-batch cost when the one-time compilation overhead is spread across an increasing number of epochs.
+Ribbons indicate the 10--90% quantile range across replications.
+As the number of epochs grows, the amortized cost of the anvil variants converges toward their pure runtime cost per batch.
 
 ![](benchmarks/mlp/mlp_amortize.png){width=100%}

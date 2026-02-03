@@ -8,12 +8,21 @@ SEED <- 42L
 set.seed(SEED)
 
 # Change this when not running in Docker
-PYTHON_PATH <- "/usr/bin/python3"
+PYTHON_PATH <- Sys.which("python3")
+if (PYTHON_PATH == "") {
+  PYTHON_PATH <- Sys.which("python")
+}
 
 REG_PATH <- here("benchmarks", "mlp", "registry-gpu")
 
 if (dir.exists(REG_PATH)) {
-  stop("Registry already exists. Delete it to run the benchmark again.")
+  # Ask whether to delete the registry
+  answer <- readline("Registry already exists. Delete it to run the benchmark again? (y/n)")
+  if (answer == "y") {
+    unlink(REG_PATH, recursive = TRUE)
+  } else {
+    stop("Registry already exists. Delete it to run the benchmark again.")
+  }
 }
 
 setup(
@@ -25,13 +34,14 @@ setup(
 
 problem_design <- expand.grid(
   list(
-    epochs = EPOCHS,
-    batch_size = BATCH_SIZE,
-    n_batches = N_BATCHES,
-    p = P,
+    epochs = 10L,
+    # batch_size must divide 1024 (n)
+    batch_size = c(32L, 64L, 128L),
+    n = 256 * 4L,
+    p = 10L,
     device = "cuda",
-    n_layers = c(0L, 4L, 8L, 16L),
-    latent = c(1000L, 3000L, 9000L)
+    n_layers = c(0L, 4L, 8L),
+    latent = c(10L, 20L, 40L, 80L, 160L)
   ),
   stringsAsFactors = FALSE
 )
@@ -42,10 +52,10 @@ addExperiments(
   ),
   algo.designs = list(
     rtorch = data.frame(),
-    anvil = data.frame(compile_loop = c(TRUE, FALSE)),
-    pytorch = data.frame()
+    pytorch = data.frame(),
+    anvil = data.frame(compile_loop = c(TRUE, FALSE))
   ),
-  repls = REPLS
+  repls = 10L
 )
 
 tbl <- unwrap(getJobTable())
