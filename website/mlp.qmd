@@ -9,7 +9,7 @@ Source code for benchmark: [https://github.com/r-xla/benchmarks/tree/main/benchm
 The benchmark compares three implementations of an MLP training loop: **PyTorch**, **R torch**, and **anvil** (with both compiled loop and R loop variants).
 The task is a synthetic regression problem where random normal data is generated with a linear target plus noise.
 
-The number of threads is set per benchmark via `taskset -c 0-7`, i.e. 8 logical cores were available.
+The number of threads is set per benchmark via `taskset -c 0`, i.e. a single logical core was available.
 
 **CPU benchmark parameters:**
 
@@ -18,7 +18,7 @@ Besides the parameters apparent from the plot, we used:
 - **Input features (p):** 10
 - **Optimizer:** SGD (lr = 0.0001)
 - **Loss:** MSE
-- **Repetitions**: 1
+- **Repetitions**: 10
 
 Timing excludes the warmup phase. For anvil, compilation time is recorded separately.
 
