@@ -93,10 +93,10 @@ time_anvil <- function(epochs, batch_size, n, n_layers, latent, p, device, seed,
   
   X_anvil <- jit_eval({
     nv_reshape(nv_tensor(X, dtype = "f32", device = device), shape = c(n_batches, batch_size, shape(X)[-1L]))
-  })
+  }, device = device)
   Y_anvil <- jit_eval({
     nv_reshape(nv_tensor(Y, dtype = "f32", device = device), shape = c(n_batches, batch_size, shape(Y)[-1L]))
-  })
+  }, device = device)
 
   if (compile_loop) {
 
@@ -120,12 +120,12 @@ time_anvil <- function(epochs, batch_size, n, n_layers, latent, p, device, seed,
       list(loss = out$l, params = out$p)
     }
 
-    train_anvil <- jit(train_anvil_r, static = c("batch_size", "n_batches"))
+    train_anvil <- jit(train_anvil_r, static = c("batch_size", "n_batches"), device = device)
 
     params_ <- init_model_params(hidden_dims)
 
     # precompile
-    out <- train_anvil(X_anvil, Y_anvil, params_, n_epochs = nv_scalar(1L), batch_size = batch_size, n_batches = n_batches, lr = lr)
+    out <- train_anvil(X_anvil, Y_anvil, params_, n_epochs = nv_scalar(1L, device = device), batch_size = batch_size, n_batches = n_batches, lr = lr)
 
     # time compilation overhead
     t0 <- Sys.time()
@@ -171,7 +171,7 @@ time_anvil <- function(epochs, batch_size, n, n_layers, latent, p, device, seed,
 
   t0 <- Sys.time()
   result <- if (compile_loop) {
-    train_anvil(X_anvil, Y_anvil, params, n_epochs = nv_scalar(epochs), batch_size = batch_size, n_batches = n_batches, lr = lr)
+    train_anvil(X_anvil, Y_anvil, params, n_epochs = nv_scalar(epochs, device = device), batch_size = batch_size, n_batches = n_batches, lr = lr)
   } else {
     train_anvil(X, Y, params, n_epochs = epochs, batch_size = batch_size, n_batches = n_batches, lr = lr)
   }

@@ -41,7 +41,7 @@ problem_design <- expand.grid(
     p = 10L,
     device = "cuda",
     n_layers = c(0L, 4L, 8L),
-    latent = c(10L, 20L, 40L, 80L, 160L)
+    latent = c(10L, 20L, 40L, 80L, 160L) * 10
   ),
   stringsAsFactors = FALSE
 )
@@ -55,7 +55,7 @@ addExperiments(
     pytorch = data.frame(),
     anvil = data.frame(compile_loop = c(TRUE, FALSE))
   ),
-  repls = 10L
+  repls = 1L
 )
 
 tbl <- unwrap(getJobTable())
