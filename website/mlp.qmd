@@ -4,6 +4,11 @@ title: "MLP Benchmark"
 
 Source code for benchmark: [https://github.com/r-xla/benchmarks/tree/main/benchmarks/mlp](https://github.com/r-xla/benchmarks/tree/main/benchmarks/mlp).
 
+TODO:
+
+* [ ] Include anvil async timing when available (use > 0 cores then)
+* [ ] Increase CUDA repetitions
+
 ## Experiment Setup
 
 The benchmark compares three implementations of an MLP training loop: **PyTorch**, **R torch**, and **anvil** (with both compiled loop and R loop variants).
@@ -23,10 +28,6 @@ Besides the parameters apparent from the plot, we used:
 Timing excludes the warmup phase. For anvil, compilation time is recorded separately.
 All reported values are medians across replications.
 
-TODO:
-
-* [ ] Add CUDA benchmarks.
-* [ ] Include anvil async timing when available.
 
 
 ## CPU Results
@@ -36,8 +37,22 @@ Compilation only applies to the anvil variants; for torch and PyTorch it is zero
 
 ![](benchmarks/mlp/mlp_benchmark.png){width=100%}
 
-The amortization plot shows the effective per-batch cost when the one-time compilation overhead is spread across an increasing number of epochs.
+The amortization plot exemplarily shows the effective per-batch cost when increasing the number of epochs.
 Ribbons indicate the 10--90% quantile range across replications.
 As the number of epochs grows, the amortized cost of the anvil variants converges toward their pure runtime cost per batch.
 
 ![](benchmarks/mlp/mlp_amortize.png){width=100%}
+
+## GPU Results
+
+The GPU benchmark was run on hgx-h100-94x4 and uses the same setup but runs on CUDA with larger latent dimensions (10x).
+Note that only a single repetition was run, so no variability information is available.
+
+Note that the anvil implementation is the only one that does not (yet) use asynchronous evaluation.
+Having async kernel dispatch will improve runtime performance in the future.
+
+![](benchmarks/mlp/mlp_benchmark_gpu.png){width=100%}
+
+The amortization plot below exemplarily shows the effective per-batch cost.
+
+![](benchmarks/mlp/mlp_amortize_gpu.png){width=100%}

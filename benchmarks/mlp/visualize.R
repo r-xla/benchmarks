@@ -94,7 +94,7 @@ p <- ggplot(bars, aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax)) +
       batch_size = \(x) paste0("Batch Size: ", x),
       latent     = \(x) paste0("Latent: ", x)
     ),
-    scales = "free_y"
+    scales = "fixed"
   ) +
   labs(x = "Number of Hidden Layers", y = "Wall Time (s)",
        title = "MLP Training Wall Time (10 Epochs)") +
@@ -114,8 +114,6 @@ p <- ggplot(bars, aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax)) +
   ) +
   guides(fill = guide_legend(nrow = 1))
 
-ggsave(here("benchmarks", "mlp", "mlp_benchmark.pdf"), p,
-       width = 10, height = 6.5)
 ggsave(here("benchmarks", "mlp", "mlp_benchmark.png"), p,
        width = 10, height = 6.5, dpi = 300)
 
@@ -148,7 +146,7 @@ p2 <- ggplot(df_amort_agg[batch_size == 128 & latent == 160],
   scale_x_log10(breaks = epoch_grid) +
   scale_y_continuous(expand = expansion(mult = c(0.02, 0.08))) +
   facet_wrap(
-    ~ n_layers, nrow = 1, scales = "free_y",
+    ~ n_layers, nrow = 1, scales = "fixed",
     labeller = labeller(n_layers = \(x) paste0("Hidden Layers: ", x))
   ) +
   labs(x = "Epochs", y = "Time per Batch (s)",
@@ -168,7 +166,119 @@ p2 <- ggplot(df_amort_agg[batch_size == 128 & latent == 160],
   ) +
   guides(color = guide_legend(nrow = 1), fill = guide_legend(nrow = 1))
 
-ggsave(here("benchmarks", "mlp", "mlp_amortize.pdf"), p2,
-       width = 9, height = 3.5)
 ggsave(here("benchmarks", "mlp", "mlp_amortize.png"), p2,
+       width = 9, height = 3.5, dpi = 300)
+
+# ==========================================================================
+# GPU Results (single repetition)
+# ==========================================================================
+
+df_gpu <- readRDS(here::here("benchmarks", "mlp", "result-gpu.rds"))
+setDT(df_gpu)
+
+df_gpu[, Algorithm := factor(alg_map[algorithm], levels = alg_levels)]
+
+df_gpu_agg <- df_gpu[, .(
+  time_total   = median(time_total),
+  compile_time = median(compile_time)
+), by = .(Algorithm, n_layers, latent, batch_size)]
+
+df_gpu_agg[, alg_i := as.numeric(Algorithm)]
+df_gpu_agg[, xpos  := n_layers + (alg_i - (n_alg + 1) / 2) * bar_w]
+df_gpu_agg[, xmin  := xpos - half_w]
+df_gpu_agg[, xmax  := xpos + half_w]
+
+bars_runtime_gpu <- df_gpu_agg[, .(Algorithm, n_layers, latent, batch_size,
+                                   xmin, xmax,
+                                   ymin = 0, ymax = time_total,
+                                   fill_key = as.character(Algorithm))]
+
+bars_compile_gpu <- df_gpu_agg[compile_time > 0,
+                               .(Algorithm, n_layers, latent, batch_size,
+                                 xmin, xmax,
+                                 ymin = time_total, ymax = time_total + compile_time,
+                                 fill_key = paste0(as.character(Algorithm), " (compile)"))]
+
+bars_gpu <- rbindlist(list(bars_runtime_gpu, bars_compile_gpu))
+bars_gpu[, fill_key := factor(fill_key, levels = fill_levels)]
+
+p_gpu <- ggplot(bars_gpu, aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax)) +
+  geom_rect(aes(fill = fill_key), color = "white", linewidth = 0.12) +
+  scale_fill_manual(
+    values = fill_pal,
+    breaks = legend_breaks,
+    labels = legend_labels,
+    name   = NULL
+  ) +
+  scale_x_continuous(breaks = c(0, 4, 8), minor_breaks = NULL) +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.05))) +
+  facet_grid(
+    batch_size ~ latent,
+    labeller = labeller(
+      batch_size = \(x) paste0("Batch Size: ", x),
+      latent     = \(x) paste0("Latent: ", x)
+    ),
+    scales = "fixed"
+  ) +
+  labs(x = "Number of Hidden Layers", y = "Wall Time (s)",
+       title = "MLP Training Wall Time - GPU (10 Epochs)") +
+  theme_bw(base_size = 10) +
+  theme(
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor    = element_blank(),
+    legend.position     = "bottom",
+    legend.margin       = margin(0, 0, 0, 0),
+    legend.text         = element_text(size = 8.5),
+    legend.key.size     = unit(0.4, "cm"),
+    strip.background    = element_rect(fill = "grey95", color = "grey80"),
+    strip.text          = element_text(size = 8, face = "bold"),
+    axis.text           = element_text(size = 7),
+    axis.title          = element_text(size = 10),
+    panel.spacing       = unit(0.4, "lines")
+  ) +
+  guides(fill = guide_legend(nrow = 1))
+
+ggsave(here("benchmarks", "mlp", "mlp_benchmark_gpu.png"), p_gpu,
+       width = 10, height = 6.5, dpi = 300)
+
+# --- Amortization plot (GPU) ---
+
+df_gpu_amort <- df_gpu[, {
+  amort <- time_per_batch + compile_time / (n_batches * epoch_grid)
+  .(epochs = epoch_grid, amortized_tpb = amort)
+}, by = .(Algorithm, n_layers, latent, batch_size, time_per_batch,
+          compile_time, n_batches, repl)]
+
+df_gpu_amort_agg <- df_gpu_amort[, .(
+  atpb_med = median(amortized_tpb)
+), by = .(Algorithm, n_layers, latent, batch_size, epochs)]
+
+p2_gpu <- ggplot(df_gpu_amort_agg[batch_size == 128 & latent == 1600],
+                 aes(x = epochs, color = Algorithm)) +
+  geom_line(aes(y = atpb_med), linewidth = 0.6) +
+  geom_point(aes(y = atpb_med), size = 1, show.legend = FALSE) +
+  scale_color_manual(values = pal, name = NULL) +
+  scale_x_log10(breaks = epoch_grid) +
+  scale_y_continuous(expand = expansion(mult = c(0.02, 0.08))) +
+  facet_wrap(
+    ~ n_layers, nrow = 1, scales = "fixed",
+    labeller = labeller(n_layers = \(x) paste0("Hidden Layers: ", x))
+  ) +
+  labs(x = "Epochs", y = "Time per Batch (s)",
+       title = "Compile-Time Amortization over Epochs - GPU (Batch Size: 128, Latent: 1600)") +
+  theme_bw(base_size = 10) +
+  theme(
+    panel.grid.minor    = element_blank(),
+    legend.position     = "bottom",
+    legend.margin       = margin(0, 0, 0, 0),
+    legend.text         = element_text(size = 8.5),
+    strip.background    = element_rect(fill = "grey95", color = "grey80"),
+    strip.text          = element_text(size = 8, face = "bold"),
+    axis.text           = element_text(size = 7),
+    axis.title          = element_text(size = 10),
+    panel.spacing       = unit(0.8, "lines")
+  ) +
+  guides(color = guide_legend(nrow = 1))
+
+ggsave(here("benchmarks", "mlp", "mlp_amortize_gpu.png"), p2_gpu,
        width = 9, height = 3.5, dpi = 300)

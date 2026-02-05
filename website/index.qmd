@@ -4,7 +4,7 @@ title: "Anvil Benchmarks"
 
 Benchmarks for evaluating runtime performance [anvil](https://github.com/r-xla/anvil).
 
-The computationl environments are from [https://github.com/r-xla/docker], specifically:
+The computationl environments are from [https://github.com/r-xla/docker](https://github.com/r-xla/docker), specifically:
 
 * `anvil-cuda-bench`
 * `anvil-cpu-bench`
