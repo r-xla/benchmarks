@@ -13,7 +13,7 @@ if (PYTHON_PATH == "") {
   PYTHON_PATH <- Sys.which("python")
 }
 
-REG_PATH <- here("benchmarks", "mlp", paste0("registry-cpu-", length(parallel::mcaffinity())))
+REG_PATH <- here("benchmarks", "mlp", paste0("registry-cpu-single-", length(parallel::mcaffinity())))
 
 if (dir.exists(REG_PATH)) {
   # Ask whether to delete the registry
@@ -69,4 +69,4 @@ for (id in sample(tbl$job.id)) {
 
 source(here("benchmarks", "mlp", "summarize.R"))
 result <- summarize(tbl$job.id)
-saveRDS(result, here("benchmarks", "mlp", paste0("result-cpu-", length(parallel::mcaffinity()), ".rds")))
+saveRDS(result, here("benchmarks", "mlp", paste0("result-cpu-single-", length(parallel::mcaffinity()), ".rds")))
