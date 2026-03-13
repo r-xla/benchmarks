@@ -66,4 +66,19 @@ setup <- function(reg_path, python_path, work_dir, seed = 42L) {
     #do.call(time_anvil, args = c(instance, list(seed = job$seed, compile_loop = compile_loop)))
     callr::r(time_anvil, args = c(instance, list(seed = job$seed, compile_loop = compile_loop)))
   })
+
+  addAlgorithm("jax", fun = function(instance, job, ...) {
+    f <- function(..., python_path) {
+      library(reticulate)
+      x <- try({
+        reticulate::use_python(python_path, required = TRUE)
+        reticulate::source_python(here::here("benchmarks", "mlp", "time_jax.py"))
+        print(reticulate::py_config())
+        time_jax(...)
+      }, silent = TRUE)
+      print(x)
+    }
+    args <- c(instance, list(seed = job$seed, python_path = python_path))
+    callr::r(f, args = args)
+  })
 }
