@@ -97,7 +97,7 @@ p <- ggplot(bars, aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax)) +
     scales = "fixed"
   ) +
   labs(x = "Number of Hidden Layers", y = "Wall Time (s)",
-       title = "MLP Training Wall Time (10 Epochs)") +
+       title = "MLP Training Wall Time - CPU 32 Threads (10 Epochs)") +
   theme_bw(base_size = 10) +
   theme(
     panel.grid.major.x = element_blank(),
@@ -150,7 +150,7 @@ p2 <- ggplot(df_amort_agg[batch_size == 128 & latent == 160],
     labeller = labeller(n_layers = \(x) paste0("Hidden Layers: ", x))
   ) +
   labs(x = "Epochs", y = "Time per Batch (s)",
-       title = "Compile-Time Amortization over Epochs (Batch Size: 128, Latent: 160)",
+       title = "Compile-Time Amortization over Epochs - CPU 32 Threads (Batch Size: 128, Latent: 160)",
        caption = "Ribbons: 10-90% quantile.") +
   theme_bw(base_size = 10) +
   theme(

@@ -14,7 +14,7 @@ TODO:
 The benchmark compares three implementations of an MLP training loop: **PyTorch**, **R torch**, and **anvil** (with both compiled loop and R loop variants).
 The task is a synthetic regression problem where random normal data is generated with a linear target plus noise.
 
-The number of threads is set per benchmark via `taskset -c 0`, i.e. a single logical core was available.
+The CPU benchmark was run with 32 threads.
 
 **CPU benchmark parameters:**
 
