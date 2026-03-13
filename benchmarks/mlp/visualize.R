@@ -2,7 +2,7 @@ library(here)
 library(ggplot2)
 library(data.table)
 
-df <- readRDS(here::here("benchmarks", "mlp", "result-cpu-1.rds"))
+df <- readRDS(here::here("benchmarks", "mlp", "result-cpu-32.rds"))
 setDT(df)
 
 # --- Algorithm labels ---

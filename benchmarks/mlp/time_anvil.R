@@ -26,7 +26,7 @@ time_anvil <- function(epochs, batch_size, n, n_layers, latent, p, device, seed,
     # matmul is batched
     out <- x %*% params$W
     # out has shape (n_batch, d_out)
-    # bias has shape (1, d_out) -> broadcast 
+    # bias has shape (1, d_out) -> broadcast
     out + nv_broadcast_to(params$b, shape = shape(out))
   }
 
@@ -36,7 +36,7 @@ time_anvil <- function(epochs, batch_size, n, n_layers, latent, p, device, seed,
       b = nv_tensor(matrix(0, 1L, nout), dtype = "f32", device = device)
     )
   }
-  
+
     relu <- function(x) {
     nv_max(x, 0)
   }
@@ -75,7 +75,7 @@ time_anvil <- function(epochs, batch_size, n, n_layers, latent, p, device, seed,
     }, params, grads)
     list(l, params)
   }
-  
+
   eval_anvil <- jit(function(X, Y, params, batch_size, n_batches) {
     out <- nv_while(
       list(batch = 1L, total_loss = 0.0),
@@ -90,7 +90,7 @@ time_anvil <- function(epochs, batch_size, n, n_layers, latent, p, device, seed,
     )
     out$total_loss / n_batches
   }, static = c("n_batches", "batch_size"))
-  
+
   X_anvil <- jit_eval({
     nv_reshape(nv_tensor(X, dtype = "f32", device = device), shape = c(n_batches, batch_size, shape(X)[-1L]))
   }, device = device)
@@ -135,7 +135,7 @@ time_anvil <- function(epochs, batch_size, n, n_layers, latent, p, device, seed,
     as_array(out$loss)
   } else {
     step_sgd <- jit(step_sgd_r, donate = c("X_batch", "Y_batch", "params"))
-    
+
     train_anvil <- function(X, Y, params, n_epochs, batch_size, n_batches, lr) {
 
       for (epoch in seq_len(n_epochs)) {
@@ -150,7 +150,7 @@ time_anvil <- function(epochs, batch_size, n, n_layers, latent, p, device, seed,
       }
       list(loss = out[[1L]], params = params)
     }
-    
+
     X_batch <- nv_tensor(X[seq_len(batch_size), , drop = FALSE], "f32", device = device)
     Y_batch <- nv_tensor(Y[seq_len(batch_size), , drop = FALSE], "f32", device = device)
     params_ <- init_model_params(hidden_dims)
@@ -158,7 +158,6 @@ time_anvil <- function(epochs, batch_size, n, n_layers, latent, p, device, seed,
     out <- step_sgd(X_batch, Y_batch, params_, lr)
     # time compilation overhead
     t0 <- Sys.time()
-    browser()
     xla(step_sgd_r, args = list(X_batch = X_batch, Y_batch = Y_batch, params = params_, lr = lr))
     compile_time <- as.numeric(difftime(Sys.time(), t0, units = "secs"))
     # Sync
@@ -179,10 +178,10 @@ time_anvil <- function(epochs, batch_size, n, n_layers, latent, p, device, seed,
   # TODO: Does this sync the whole stream? We need an API like torch_cuda_synchronize() to do this properly I think.
   final_loss <- anvil::as_array(result$loss)
   time <- as.numeric(difftime(Sys.time(), t0, units = "secs"))
-  
+
   eval_loss <- eval_anvil(X_anvil, Y_anvil, result$params, batch_size = batch_size, n_batches = n_batches)
   eval_loss <- as_array(eval_loss)
-  
+
   n_params <- sum(sapply(flatten(result$params), function(p) prod(shape(p))))
 
   n_cores <- length(parallel::mcaffinity())
