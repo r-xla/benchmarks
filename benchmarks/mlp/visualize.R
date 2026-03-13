@@ -94,7 +94,7 @@ p <- ggplot(bars, aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax)) +
       batch_size = \(x) paste0("Batch Size: ", x),
       latent     = \(x) paste0("Latent: ", x)
     ),
-    scales = "fixed"
+    scales = "free_y"
   ) +
   labs(x = "Number of Hidden Layers", y = "Wall Time (s)",
        title = "MLP Training Wall Time - CPU 32 Threads (10 Epochs)") +
@@ -146,7 +146,7 @@ p2 <- ggplot(df_amort_agg[batch_size == 128 & latent == 160],
   scale_x_log10(breaks = epoch_grid) +
   scale_y_continuous(expand = expansion(mult = c(0.02, 0.08))) +
   facet_wrap(
-    ~ n_layers, nrow = 1, scales = "fixed",
+    ~ n_layers, nrow = 1, scales = "free_y",
     labeller = labeller(n_layers = \(x) paste0("Hidden Layers: ", x))
   ) +
   labs(x = "Epochs", y = "Time per Batch (s)",
@@ -218,7 +218,7 @@ p_gpu <- ggplot(bars_gpu, aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax
       batch_size = \(x) paste0("Batch Size: ", x),
       latent     = \(x) paste0("Latent: ", x)
     ),
-    scales = "fixed"
+    scales = "free_y"
   ) +
   labs(x = "Number of Hidden Layers", y = "Wall Time (s)",
        title = "MLP Training Wall Time - GPU (10 Epochs)") +
@@ -261,7 +261,7 @@ p2_gpu <- ggplot(df_gpu_amort_agg[batch_size == 128 & latent == 1600],
   scale_x_log10(breaks = epoch_grid) +
   scale_y_continuous(expand = expansion(mult = c(0.02, 0.08))) +
   facet_wrap(
-    ~ n_layers, nrow = 1, scales = "fixed",
+    ~ n_layers, nrow = 1, scales = "free_y",
     labeller = labeller(n_layers = \(x) paste0("Hidden Layers: ", x))
   ) +
   labs(x = "Epochs", y = "Time per Batch (s)",

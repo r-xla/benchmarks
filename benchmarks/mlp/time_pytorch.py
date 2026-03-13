@@ -6,6 +6,7 @@ from torch import nn
 
 
 def time_pytorch(epochs, batch_size, n, n_layers, latent, p, device, seed):
+    torch.set_num_interop_threads(1)
     torch.manual_seed(seed)
 
     n = int(n)
