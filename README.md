@@ -15,3 +15,23 @@ The child processes will inherit the number of threads from the parent process.
 ## Environments
 
 For benchmarking, we use the `anvil-cpu-bench` and `anvil-cuda-bench` images as defined in https://github.com/r-xla/docker.
+
+### CPU Benchmark
+
+Start the Docker container (mounting the benchmarks repo):
+
+```bash
+docker run -it --rm -v $(pwd):/benchmarks -w /benchmarks sebffischer/anvil-cpu-bench
+```
+
+Then, inside the container, run the CPU benchmark with a specific number of threads (e.g. 1):
+
+```bash
+taskset -c 0 Rscript benchmarks/mlp/run-cpu.R
+```
+
+To use e.g. 4 threads:
+
+```bash
+taskset -c 0-3 Rscript benchmarks/mlp/run-cpu.R
+```
