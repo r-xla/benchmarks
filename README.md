@@ -35,3 +35,17 @@ To use e.g. 4 threads:
 ```bash
 taskset -c 0-3 Rscript benchmarks/mlp/run-cpu.R
 ```
+
+### CUDA Benchmark
+
+Start the Docker container with GPU access (mounting the benchmarks repo):
+
+```bash
+docker run -it --rm --gpus all -v $(pwd):/benchmarks -w /benchmarks sebffischer/anvil-cuda-bench
+```
+
+Then, inside the container, run the GPU benchmark:
+
+```bash
+Rscript benchmarks/mlp/run-gpu.R
+```
