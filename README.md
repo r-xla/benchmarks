@@ -24,14 +24,19 @@ Start the Docker container (mounting the benchmarks repo):
 docker run -it --rm -v $(pwd):/benchmarks -w /benchmarks sebffischer/anvil-cpu-bench
 ```
 
-Then, inside the container, run the CPU benchmark with a specific number of threads (e.g. 1):
+There are two files with CPU benchmarks:
+* `run-cpu-single.R`, which is intended to be run with a single core.
+  It compares PyTorch vs rTorch vs anvil (compiled step vs compiled loop)
+* `run-cpu-multi.R`, which is intended to be run with multiple threads.
+  It compares anvil with compiled loop and compiled step.
+
+Run as follows:
 
 ```bash
-taskset -c 0 Rscript benchmarks/mlp/run-cpu.R
+taskset -c 0 Rscript benchmarks/mlp/run-cpu-single.R
+taskset -c 0-31 Rscript benchmarks/mlp/run-cpu-multi.R
 ```
 
-To use e.g. 4 threads:
-
-```bash
-taskset -c 0-3 Rscript benchmarks/mlp/run-cpu.R
-```
+When running PyTorch with multiple threads, the threads need to be carefully configured
+(`MKL_THREADS` vs. `OPENMP_THREADS`), otherwise the comparison is not fair.
+For anvil we don't have to take care of this, as XLA seems to be doing fine without any configuration.
