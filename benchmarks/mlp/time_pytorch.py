@@ -34,7 +34,7 @@ def time_pytorch(epochs, batch_size, n, n_layers, latent, p, device, seed):
 
     X = torch.randn(n, p, device=device)
     beta = torch.randn(p, 1, device=device)
-    Y = X.matmul(beta) + torch.randn(n, 1, device=device) * 0.01
+    Y = X.matmul(beta) + torch.randn(n, 1, device=device) * 0.1
 
     net = make_network(p, latent, n_layers)
     net.to(device)

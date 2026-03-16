@@ -42,7 +42,7 @@ problem_design <- expand.grid(
     device = "cpu",
     #n_layers = 0L,
     #latent = 10L
-    n_layers = c(0L, 4L, 8L, 16L),
+    n_layers = c(0L, 4L, 8L, 12L, 16L),
     latent = c(10L, 20L, 40L, 80L, 160L, 320L)
   ),
   stringsAsFactors = FALSE
@@ -57,7 +57,7 @@ addExperiments(
     pytorch = data.frame(),
     anvil = data.frame(compile_loop = c(TRUE, FALSE))
   ),
-  repls = 2L
+  repls = 10L
 )
 
 tbl <- unwrap(getJobTable())

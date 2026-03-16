@@ -2,7 +2,7 @@ library(here)
 library(ggplot2)
 library(data.table)
 
-df <- readRDS(here::here("benchmarks", "mlp", "result-cpu-32.rds"))
+df <- readRDS(here::here("benchmarks", "mlp", "result-cpu-single-1.rds"))
 setDT(df)
 
 # --- Algorithm labels ---
@@ -17,22 +17,12 @@ df[, Algorithm := factor(alg_map[algorithm], levels = alg_levels)]
 
 # --- Aggregate across replications ---
 df_agg <- df[, .(
-  time_total  = median(time_total),
-  compile_time = median(compile_time)
+  time_total   = median(time_total),
+  compile_time = median(compile_time),
+  loss         = median(loss)
 ), by = .(Algorithm, n_layers, latent, batch_size)]
 
-# --- Manual dodge positions ---
-n_alg   <- length(alg_levels)
-group_w <- 3
-bar_w   <- group_w / n_alg
-half_w  <- bar_w * 0.44
-
-df_agg[, alg_i := as.numeric(Algorithm)]
-df_agg[, xpos  := n_layers + (alg_i - (n_alg + 1) / 2) * bar_w]
-df_agg[, xmin  := xpos - half_w]
-df_agg[, xmax  := xpos + half_w]
-
-# --- Colour palettes ---
+# --- Colour palette ---
 pal <- c(
   "torch (R)"        = "#D62728",
   "PyTorch"          = "#1F77B4",
@@ -40,67 +30,9 @@ pal <- c(
   "anvil"            = "#FF7F0E"
 )
 
-lighten <- function(hex, amount = 0.55) {
-  r <- col2rgb(hex) / 255
-  r_light <- r + (1 - r) * amount
-  rgb(r_light[1, ], r_light[2, ], r_light[3, ])
-}
-
-pal_light <- setNames(lighten(pal), paste0(names(pal), " (compile)"))
-fill_pal  <- c(pal, pal_light)
-
-# --- Build rectangle data ---
-bars_runtime <- df_agg[, .(Algorithm, n_layers, latent, batch_size,
-                           xmin, xmax,
-                           ymin = 0, ymax = time_total,
-                           fill_key = as.character(Algorithm))]
-
-bars_compile <- df_agg[compile_time > 0,
-                       .(Algorithm, n_layers, latent, batch_size,
-                         xmin, xmax,
-                         ymin = time_total, ymax = time_total + compile_time,
-                         fill_key = paste0(as.character(Algorithm), " (compile)"))]
-
-bars <- rbindlist(list(bars_runtime, bars_compile))
-fill_levels <- c(alg_levels, paste0(alg_levels, " (compile)"))
-bars[, fill_key := factor(fill_key, levels = fill_levels)]
-
-# --- Legend: 6 entries, algorithms + their compile variants ---
-legend_breaks <- c(
-  "torch (R)", "PyTorch",
-  "anvil (jit loop)", "anvil (jit loop) (compile)",
-  "anvil",            "anvil (compile)"
-)
-legend_labels <- c(
-  "torch (R)", "PyTorch",
-  "anvil (jit loop)", "   + compile",
-  "anvil",            "   + compile"
-)
-
-# --- Plot ---
-p <- ggplot(bars, aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax)) +
-  geom_rect(aes(fill = fill_key), color = "white", linewidth = 0.12) +
-  scale_fill_manual(
-    values = fill_pal,
-    breaks = legend_breaks,
-    labels = legend_labels,
-    name   = NULL
-  ) +
-  scale_x_continuous(breaks = c(0, 4, 8), minor_breaks = NULL) +
-  scale_y_continuous(expand = expansion(mult = c(0, 0.05))) +
-  facet_grid(
-    batch_size ~ latent,
-    labeller = labeller(
-      batch_size = \(x) paste0("Batch Size: ", x),
-      latent     = \(x) paste0("Latent: ", x)
-    ),
-    scales = "free_y"
-  ) +
-  labs(x = "Number of Hidden Layers", y = "Wall Time (s)",
-       title = "MLP Training Wall Time - CPU 32 Threads (10 Epochs)") +
-  theme_bw(base_size = 10) +
+# --- Shared theme ---
+theme_bench <- theme_bw(base_size = 10) +
   theme(
-    panel.grid.major.x = element_blank(),
     panel.grid.minor    = element_blank(),
     legend.position     = "bottom",
     legend.margin       = margin(0, 0, 0, 0),
@@ -108,13 +40,80 @@ p <- ggplot(bars, aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax)) +
     legend.key.size     = unit(0.4, "cm"),
     strip.background    = element_rect(fill = "grey95", color = "grey80"),
     strip.text          = element_text(size = 8, face = "bold"),
+    strip.text.y        = element_text(size = 7, face = "bold"),
     axis.text           = element_text(size = 7),
     axis.title          = element_text(size = 10),
     panel.spacing       = unit(0.4, "lines")
-  ) +
-  guides(fill = guide_legend(nrow = 1))
+  )
+
+facet_bs_latent <- facet_grid(
+  batch_size ~ latent,
+  labeller = labeller(
+    batch_size = \(x) paste0("BS: ", x),
+    latent     = \(x) paste0("Latent: ", x)
+  ),
+  scales = "free_y"
+)
+
+layer_breaks <- sort(unique(df_agg$n_layers))
+
+# ==========================================================================
+# Plot 1 – Wall time (incl. compile)
+# ==========================================================================
+
+p <- ggplot(df_agg, aes(x = n_layers, y = time_total + compile_time,
+                         color = Algorithm)) +
+  geom_line(linewidth = 0.6) +
+  geom_point(size = 1.2) +
+  scale_color_manual(values = pal, name = NULL) +
+  scale_x_continuous(breaks = layer_breaks, minor_breaks = NULL) +
+  scale_y_continuous(expand = expansion(mult = c(0.02, 0.05))) +
+  facet_bs_latent +
+  labs(x = "Number of Hidden Layers", y = "Wall Time (s)",
+       title = "MLP Training Wall Time - CPU 32 Threads (10 Epochs)") +
+  theme_bench +
+  guides(color = guide_legend(nrow = 1))
 
 ggsave(here("benchmarks", "mlp", "mlp_benchmark.png"), p,
+       width = 10, height = 6.5, dpi = 300)
+
+# ==========================================================================
+# Plot 1b – Wall time (excl. JIT compile)
+# ==========================================================================
+
+p_nocompile <- ggplot(df_agg, aes(x = n_layers, y = time_total,
+                                   color = Algorithm)) +
+  geom_line(linewidth = 0.6) +
+  geom_point(size = 1.2) +
+  scale_color_manual(values = pal, name = NULL) +
+  scale_x_continuous(breaks = layer_breaks, minor_breaks = NULL) +
+  scale_y_continuous(expand = expansion(mult = c(0.02, 0.05))) +
+  facet_bs_latent +
+  labs(x = "Number of Hidden Layers", y = "Wall Time (s)",
+       title = "MLP Training Wall Time (excl. JIT) - CPU 32 Threads (10 Epochs)") +
+  theme_bench +
+  guides(color = guide_legend(nrow = 1))
+
+ggsave(here("benchmarks", "mlp", "mlp_benchmark_nocompile.png"), p_nocompile,
+       width = 10, height = 6.5, dpi = 300)
+
+# ==========================================================================
+# Plot 1c – Loss
+# ==========================================================================
+
+p_loss <- ggplot(df_agg, aes(x = n_layers, y = loss, color = Algorithm)) +
+  geom_line(linewidth = 0.6) +
+  geom_point(size = 1.2) +
+  scale_color_manual(values = pal, name = NULL) +
+  scale_x_continuous(breaks = layer_breaks, minor_breaks = NULL) +
+  scale_y_continuous(expand = expansion(mult = c(0.02, 0.05))) +
+  facet_bs_latent +
+  labs(x = "Number of Hidden Layers", y = "Loss",
+       title = "Final Training Loss - CPU 32 Threads (10 Epochs)") +
+  theme_bench +
+  guides(color = guide_legend(nrow = 1))
+
+ggsave(here("benchmarks", "mlp", "mlp_loss.png"), p_loss,
        width = 10, height = 6.5, dpi = 300)
 
 # ==========================================================================
@@ -152,25 +151,15 @@ p2 <- ggplot(df_amort_agg[batch_size == 128 & latent == 160],
   labs(x = "Epochs", y = "Time per Batch (s)",
        title = "Compile-Time Amortization over Epochs - CPU 32 Threads (Batch Size: 128, Latent: 160)",
        caption = "Ribbons: 10-90% quantile.") +
-  theme_bw(base_size = 10) +
-  theme(
-    panel.grid.minor    = element_blank(),
-    legend.position     = "bottom",
-    legend.margin       = margin(0, 0, 0, 0),
-    legend.text         = element_text(size = 8.5),
-    strip.background    = element_rect(fill = "grey95", color = "grey80"),
-    strip.text          = element_text(size = 8, face = "bold"),
-    axis.text           = element_text(size = 7),
-    axis.title          = element_text(size = 10),
-    panel.spacing       = unit(0.8, "lines")
-  ) +
+  theme_bench +
+  theme(panel.spacing = unit(0.8, "lines")) +
   guides(color = guide_legend(nrow = 1), fill = guide_legend(nrow = 1))
 
 ggsave(here("benchmarks", "mlp", "mlp_amortize.png"), p2,
        width = 9, height = 3.5, dpi = 300)
 
 # ==========================================================================
-# GPU Results (single repetition)
+# GPU Results
 # ==========================================================================
 
 df_gpu <- readRDS(here::here("benchmarks", "mlp", "result-gpu.rds"))
@@ -180,65 +169,52 @@ df_gpu[, Algorithm := factor(alg_map[algorithm], levels = alg_levels)]
 
 df_gpu_agg <- df_gpu[, .(
   time_total   = median(time_total),
-  compile_time = median(compile_time)
+  compile_time = median(compile_time),
+  loss         = median(loss)
 ), by = .(Algorithm, n_layers, latent, batch_size)]
 
-df_gpu_agg[, alg_i := as.numeric(Algorithm)]
-df_gpu_agg[, xpos  := n_layers + (alg_i - (n_alg + 1) / 2) * bar_w]
-df_gpu_agg[, xmin  := xpos - half_w]
-df_gpu_agg[, xmax  := xpos + half_w]
+gpu_layer_breaks <- sort(unique(df_gpu_agg$n_layers))
 
-bars_runtime_gpu <- df_gpu_agg[, .(Algorithm, n_layers, latent, batch_size,
-                                   xmin, xmax,
-                                   ymin = 0, ymax = time_total,
-                                   fill_key = as.character(Algorithm))]
+facet_bs_latent_gpu <- facet_grid(
+  batch_size ~ latent,
+  labeller = labeller(
+    batch_size = \(x) paste0("BS: ", x),
+    latent     = \(x) paste0("Latent: ", x)
+  ),
+  scales = "free_y"
+)
 
-bars_compile_gpu <- df_gpu_agg[compile_time > 0,
-                               .(Algorithm, n_layers, latent, batch_size,
-                                 xmin, xmax,
-                                 ymin = time_total, ymax = time_total + compile_time,
-                                 fill_key = paste0(as.character(Algorithm), " (compile)"))]
-
-bars_gpu <- rbindlist(list(bars_runtime_gpu, bars_compile_gpu))
-bars_gpu[, fill_key := factor(fill_key, levels = fill_levels)]
-
-p_gpu <- ggplot(bars_gpu, aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax)) +
-  geom_rect(aes(fill = fill_key), color = "white", linewidth = 0.12) +
-  scale_fill_manual(
-    values = fill_pal,
-    breaks = legend_breaks,
-    labels = legend_labels,
-    name   = NULL
-  ) +
-  scale_x_continuous(breaks = c(0, 4, 8), minor_breaks = NULL) +
-  scale_y_continuous(expand = expansion(mult = c(0, 0.05))) +
-  facet_grid(
-    batch_size ~ latent,
-    labeller = labeller(
-      batch_size = \(x) paste0("Batch Size: ", x),
-      latent     = \(x) paste0("Latent: ", x)
-    ),
-    scales = "free_y"
-  ) +
+# --- GPU Wall time ---
+p_gpu <- ggplot(df_gpu_agg, aes(x = n_layers, y = time_total + compile_time,
+                                 color = Algorithm)) +
+  geom_line(linewidth = 0.6) +
+  geom_point(size = 1.2) +
+  scale_color_manual(values = pal, name = NULL) +
+  scale_x_continuous(breaks = gpu_layer_breaks, minor_breaks = NULL) +
+  scale_y_continuous(expand = expansion(mult = c(0.02, 0.05))) +
+  facet_bs_latent_gpu +
   labs(x = "Number of Hidden Layers", y = "Wall Time (s)",
        title = "MLP Training Wall Time - GPU (10 Epochs)") +
-  theme_bw(base_size = 10) +
-  theme(
-    panel.grid.major.x = element_blank(),
-    panel.grid.minor    = element_blank(),
-    legend.position     = "bottom",
-    legend.margin       = margin(0, 0, 0, 0),
-    legend.text         = element_text(size = 8.5),
-    legend.key.size     = unit(0.4, "cm"),
-    strip.background    = element_rect(fill = "grey95", color = "grey80"),
-    strip.text          = element_text(size = 8, face = "bold"),
-    axis.text           = element_text(size = 7),
-    axis.title          = element_text(size = 10),
-    panel.spacing       = unit(0.4, "lines")
-  ) +
-  guides(fill = guide_legend(nrow = 1))
+  theme_bench +
+  guides(color = guide_legend(nrow = 1))
 
 ggsave(here("benchmarks", "mlp", "mlp_benchmark_gpu.png"), p_gpu,
+       width = 10, height = 6.5, dpi = 300)
+
+# --- GPU Loss ---
+p_loss_gpu <- ggplot(df_gpu_agg, aes(x = n_layers, y = loss, color = Algorithm)) +
+  geom_line(linewidth = 0.6) +
+  geom_point(size = 1.2) +
+  scale_color_manual(values = pal, name = NULL) +
+  scale_x_continuous(breaks = gpu_layer_breaks, minor_breaks = NULL) +
+  scale_y_continuous(expand = expansion(mult = c(0.02, 0.05))) +
+  facet_bs_latent_gpu +
+  labs(x = "Number of Hidden Layers", y = "Loss",
+       title = "Final Training Loss - GPU (10 Epochs)") +
+  theme_bench +
+  guides(color = guide_legend(nrow = 1))
+
+ggsave(here("benchmarks", "mlp", "mlp_loss_gpu.png"), p_loss_gpu,
        width = 10, height = 6.5, dpi = 300)
 
 # --- Amortization plot (GPU) ---
@@ -266,18 +242,8 @@ p2_gpu <- ggplot(df_gpu_amort_agg[batch_size == 128 & latent == 1600],
   ) +
   labs(x = "Epochs", y = "Time per Batch (s)",
        title = "Compile-Time Amortization over Epochs - GPU (Batch Size: 128, Latent: 1600)") +
-  theme_bw(base_size = 10) +
-  theme(
-    panel.grid.minor    = element_blank(),
-    legend.position     = "bottom",
-    legend.margin       = margin(0, 0, 0, 0),
-    legend.text         = element_text(size = 8.5),
-    strip.background    = element_rect(fill = "grey95", color = "grey80"),
-    strip.text          = element_text(size = 8, face = "bold"),
-    axis.text           = element_text(size = 7),
-    axis.title          = element_text(size = 10),
-    panel.spacing       = unit(0.8, "lines")
-  ) +
+  theme_bench +
+  theme(panel.spacing = unit(0.8, "lines")) +
   guides(color = guide_legend(nrow = 1))
 
 ggsave(here("benchmarks", "mlp", "mlp_amortize_gpu.png"), p2_gpu,
