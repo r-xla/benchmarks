@@ -9,10 +9,10 @@ setDT(df)
 alg_map <- c(
   rtorch    = "torch (R)",
   pytorch   = "PyTorch",
-  anvil_jit = "anvil (jit loop)",
-  anvil     = "anvil"
+  anvl_jit = "anvl (jit loop)",
+  anvl     = "anvl"
 )
-alg_levels <- c("torch (R)", "PyTorch", "anvil (jit loop)", "anvil")
+alg_levels <- c("torch (R)", "PyTorch", "anvl (jit loop)", "anvl")
 df[, Algorithm := factor(alg_map[algorithm], levels = alg_levels)]
 
 # --- Aggregate across replications ---
@@ -26,8 +26,8 @@ df_agg <- df[, .(
 pal <- c(
   "torch (R)"        = "#D62728",
   "PyTorch"          = "#1F77B4",
-  "anvil (jit loop)" = "#2CA02C",
-  "anvil"            = "#FF7F0E"
+  "anvl (jit loop)" = "#2CA02C",
+  "anvl"            = "#FF7F0E"
 )
 
 # --- Shared theme ---

@@ -10,11 +10,11 @@ setup <- function(reg_path, python_path, work_dir, seed = 42L) {
   reg$cluster.functions <- makeClusterFunctionsInteractive()
 
   source(here::here("benchmarks", "mlp", "time_rtorch.R"))
-  source(here::here("benchmarks", "mlp", "time_anvil.R"))
+  source(here::here("benchmarks", "mlp", "time_anvl.R"))
 
   batchExport(list(
     time_rtorch = time_rtorch,
-    time_anvil = time_anvil
+    time_anvl = time_anvl
   ))
 
   addProblem(
@@ -62,8 +62,8 @@ setup <- function(reg_path, python_path, work_dir, seed = 42L) {
     callr::r(time_rtorch, args = c(instance, list(seed = job$seed)))
   })
 
-  addAlgorithm("anvil", fun = function(instance, job, compile_loop, ...) {
-    #do.call(time_anvil, args = c(instance, list(seed = job$seed, compile_loop = compile_loop)))
-    callr::r(time_anvil, args = c(instance, list(seed = job$seed, compile_loop = compile_loop)))
+  addAlgorithm("anvl", fun = function(instance, job, compile_loop, ...) {
+    #do.call(time_anvl, args = c(instance, list(seed = job$seed, compile_loop = compile_loop)))
+    callr::r(time_anvl, args = c(instance, list(seed = job$seed, compile_loop = compile_loop)))
   })
 }

@@ -1,10 +1,10 @@
-# Time anvil MLP training
+# Time anvl MLP training
 # Supports two modes:
 # - compile_loop = TRUE: Whole training loop is JIT compiled using nv_while
 # - compile_loop = FALSE: Step function is JIT compiled, loop is in R
 
-time_anvil <- function(epochs, batch_size, n, n_layers, latent, p, device, seed, compile_loop = TRUE) {
-  library(anvil)
+time_anvl <- function(epochs, batch_size, n, n_layers, latent, p, device, seed, compile_loop = TRUE) {
+  library(anvl)
   set.seed(seed)
   if ((n %% batch_size) != 0L) {
     stop("n must be divisible by batch_size")
@@ -76,7 +76,7 @@ time_anvil <- function(epochs, batch_size, n, n_layers, latent, p, device, seed,
     list(l, params)
   }
 
-  eval_anvil <- jit(function(X, Y, params, batch_size, n_batches) {
+  eval_anvl <- jit(function(X, Y, params, batch_size, n_batches) {
     out <- nv_while(
       list(batch = 1L, total_loss = 0.0),
       \(batch, total_loss) batch <= n_batches,
@@ -91,16 +91,16 @@ time_anvil <- function(epochs, batch_size, n, n_layers, latent, p, device, seed,
     out$total_loss / n_batches
   }, static = c("n_batches", "batch_size"))
 
-  X_anvil <- jit_eval({
+  X_anvl <- jit_eval({
     nv_reshape(nv_tensor(X, dtype = "f32", device = device), shape = c(n_batches, batch_size, shape(X)[-1L]))
   }, device = device)
-  Y_anvil <- jit_eval({
+  Y_anvl <- jit_eval({
     nv_reshape(nv_tensor(Y, dtype = "f32", device = device), shape = c(n_batches, batch_size, shape(Y)[-1L]))
   }, device = device)
 
   if (compile_loop) {
 
-    train_anvil_r <- function(X, Y, params, n_epochs, batch_size, n_batches, lr) {
+    train_anvl_r <- function(X, Y, params, n_epochs, batch_size, n_batches, lr) {
       out <- nv_while(
         list(epoch = 1L, batch = 1L, p = params, l = Inf),
         \(epoch, batch, p, l) epoch <= n_epochs,
@@ -120,23 +120,23 @@ time_anvil <- function(epochs, batch_size, n, n_layers, latent, p, device, seed,
       list(loss = out$l, params = out$p)
     }
 
-    train_anvil <- jit(train_anvil_r, static = c("batch_size", "n_batches"), device = device)
+    train_anvl <- jit(train_anvl_r, static = c("batch_size", "n_batches"), device = device)
 
     params_ <- init_model_params(hidden_dims)
 
     # precompile
-    out <- train_anvil(X_anvil, Y_anvil, params_, n_epochs = nv_scalar(1L, device = device), batch_size = batch_size, n_batches = n_batches, lr = lr)
+    out <- train_anvl(X_anvl, Y_anvl, params_, n_epochs = nv_scalar(1L, device = device), batch_size = batch_size, n_batches = n_batches, lr = lr)
 
     # time compilation overhead
     t0 <- Sys.time()
-    xla(train_anvil_r, args = list(X = X_anvil, Y = Y_anvil, params = params_, n_epochs = nv_scalar(1L), batch_size = batch_size, n_batches = n_batches, lr = lr))
+    xla(train_anvl_r, args = list(X = X_anvl, Y = Y_anvl, params = params_, n_epochs = nv_scalar(1L), batch_size = batch_size, n_batches = n_batches, lr = lr))
     compile_time <- as.numeric(difftime(Sys.time(), t0, units = "secs"))
     # Sync
     as_array(out$loss)
   } else {
     step_sgd <- jit(step_sgd_r, donate = c("X_batch", "Y_batch", "params"))
 
-    train_anvil <- function(X, Y, params, n_epochs, batch_size, n_batches, lr) {
+    train_anvl <- function(X, Y, params, n_epochs, batch_size, n_batches, lr) {
 
       for (epoch in seq_len(n_epochs)) {
         for (b in seq_len(n_batches)) {
@@ -170,16 +170,16 @@ time_anvil <- function(epochs, batch_size, n, n_layers, latent, p, device, seed,
 
   t0 <- Sys.time()
   result <- if (compile_loop) {
-    train_anvil(X_anvil, Y_anvil, params, n_epochs = nv_scalar(epochs, device = device), batch_size = batch_size, n_batches = n_batches, lr = lr)
+    train_anvl(X_anvl, Y_anvl, params, n_epochs = nv_scalar(epochs, device = device), batch_size = batch_size, n_batches = n_batches, lr = lr)
   } else {
-    train_anvil(X, Y, params, n_epochs = epochs, batch_size = batch_size, n_batches = n_batches, lr = lr)
+    train_anvl(X, Y, params, n_epochs = epochs, batch_size = batch_size, n_batches = n_batches, lr = lr)
   }
   # Need to sync once we have async XLA API
   # TODO: Does this sync the whole stream? We need an API like torch_cuda_synchronize() to do this properly I think.
-  final_loss <- anvil::as_array(result$loss)
+  final_loss <- anvl::as_array(result$loss)
   time <- as.numeric(difftime(Sys.time(), t0, units = "secs"))
 
-  eval_loss <- eval_anvil(X_anvil, Y_anvil, result$params, batch_size = batch_size, n_batches = n_batches)
+  eval_loss <- eval_anvl(X_anvl, Y_anvl, result$params, batch_size = batch_size, n_batches = n_batches)
   eval_loss <- as_array(eval_loss)
 
   n_params <- sum(sapply(flatten(result$params), function(p) prod(shape(p))))
@@ -199,8 +199,8 @@ if (FALSE) {
     seed = 42L
   )
 
-  r1 <- do.call(time_anvil, c(args, list(compile_loop = TRUE)))
-  r2 <- do.call(time_anvil, c(args, list(compile_loop = FALSE)))
+  r1 <- do.call(time_anvl, c(args, list(compile_loop = TRUE)))
+  r2 <- do.call(time_anvl, c(args, list(compile_loop = FALSE)))
   print(r1)
   print(r2)
 }
