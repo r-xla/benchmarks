@@ -57,7 +57,7 @@ addExperiments(
     pytorch = data.frame(),
     anvl = data.frame(compile_loop = c(TRUE, FALSE))
   ),
-  repls = 10L
+  repls = 1L
 )
 
 tbl <- unwrap(getJobTable())
