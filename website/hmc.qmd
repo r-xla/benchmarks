@@ -1,0 +1,56 @@
+---
+title: "HMC Benchmark"
+---
+
+Source code for benchmark: [https://github.com/r-xla/benchmarks/tree/main/benchmarks/hmc](https://github.com/r-xla/benchmarks/tree/main/benchmarks/hmc).
+
+## Experiment Setup
+
+The benchmark compares three implementations of a fixed-trajectory **Hamiltonian Monte Carlo** sampler: **Stan** (static HMC), **R torch**, and **anvil** (with both a compiled-loop variant and an R-loop variant).
+The target is the 2-D "banana" distribution
+
+$$
+U(\theta) = \frac{\theta_1^2}{200} + \frac{(\theta_2 - b\,\theta_1^2 + 100 b)^2}{2}, \qquad b = 0.01,
+$$
+
+whose marginal standard deviations are known analytically ($\mathrm{sd}(\theta_1) = 10$, $\mathrm{sd}(\theta_2) = \sqrt{1 + 2\cdot10^4 b^2} \approx 1.73$), so sampling accuracy can be measured directly.
+
+The key axis of variation is the **number of parallel chains** $K$.
+The anvil and torch samplers are written in batched form: every array carries a leading chain axis of size $K$, so all chains advance together as a single device computation.
+Stan instead runs $K$ independent Markov chains, with no cross-chain vectorisation.
+
+**Parameters:**
+
+- **Leapfrog steps (L):** 80
+- **Step size ($\epsilon$):** 0.2 (integration time $L\epsilon = 16$)
+- **Samples per chain:** 1000 (after 500 warmup)
+- **Mass matrix:** identity (`metric = "unit_e"` in Stan, unit momenta elsewhere)
+
+All three samplers use the same step size, integration time, and identity mass matrix.
+Stan's adaptation is disabled (`algorithm = "HMC"`, `adapt_engaged = FALSE`) so every sampler performs exactly $L$ leapfrog steps per iteration.
+Timing excludes the warmup phase. For anvil, JIT compilation time is recorded separately; for Stan the (one-time) C++ model compilation is the recorded compile time.
+All reported values are medians across replications.
+
+## CPU Results
+
+Wall time for drawing 1000 samples per chain as the number of parallel chains grows.
+Because the anvil and torch kernels are batched, adding chains is nearly free until the device saturates, whereas Stan's runtime grows roughly linearly with the chain count.
+
+![](benchmarks/hmc/hmc_benchmark.png){width=100%}
+
+The amortized cost per pooled sample (total samples $= K \times 1000$) makes the batching advantage explicit: for the device-vectorised samplers the per-sample cost falls as more chains are run in parallel.
+
+![](benchmarks/hmc/hmc_per_sample.png){width=100%}
+
+All samplers target the same distribution, so their accuracy (mean relative error of the estimated marginal standard deviations against the analytic truth) is comparable and improves with more chains.
+
+![](benchmarks/hmc/hmc_accuracy.png){width=100%}
+
+## GPU Results
+
+The GPU benchmark uses the same setup on CUDA over a larger range of parallel chains.
+Stan has no GPU sampler and is omitted; only the device-vectorised anvil and torch implementations are compared.
+
+![](benchmarks/hmc/hmc_benchmark_gpu.png){width=100%}
+
+![](benchmarks/hmc/hmc_per_sample_gpu.png){width=100%}
