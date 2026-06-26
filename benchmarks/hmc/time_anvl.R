@@ -29,7 +29,7 @@ time_anvl <- function(n_chains, n_samples, n_warmup, L, eps, b, device, seed, co
 
   b_t <- nv_scalar(b, dtype = "f64", device = device)
   eps_t <- nv_scalar(eps, dtype = "f64", device = device)
-  L_t <- nv_scalar(as.integer(L))
+  L_t <- nv_scalar(as.integer(L), device = device)
 
   # Potential energy U(theta) = -log p(theta), dropping additive constants.
   # theta is a (K, 2) tensor and U returns a K-vector of per-chain energies.
