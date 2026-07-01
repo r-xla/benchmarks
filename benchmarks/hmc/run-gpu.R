@@ -12,13 +12,15 @@ set.seed(SEED)
 REG_PATH <- here("benchmarks", "hmc", "registry-gpu")
 
 if (dir.exists(REG_PATH)) {
-  # Ask whether to delete the registry
-  answer <- readline("Registry already exists. Delete it to run the benchmark again? (y/n)")
-  if (answer == "y") {
-    unlink(REG_PATH, recursive = TRUE)
-  } else {
-    stop("Registry already exists. Delete it to run the benchmark again.")
+  if (interactive()) {
+    # Ask whether to delete the registry
+    answer <- readline("Registry already exists. Delete it to run the benchmark again? (y/n)")
+    if (answer != "y") {
+      stop("Registry already exists. Delete it to run the benchmark again.")
+    }
   }
+  # Interactive "y" or non-interactive (e.g. batch): delete and re-run.
+  unlink(REG_PATH, recursive = TRUE)
 }
 
 setup(
@@ -29,7 +31,7 @@ setup(
 
 problem_design <- expand.grid(
   list(
-    n_chains = c(1L, 16L, 64L, 256L, 1024L, 4096L, 16384L),
+    n_chains = as.integer(2^seq(0L, 20L, by = 2L)), # 1, 4, 16, ..., 2^20 = 1048576 (~1M)
     n_samples = 1000L,
     n_warmup = 500L,
     L = 80L,

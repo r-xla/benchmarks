@@ -10,13 +10,15 @@ set.seed(SEED)
 REG_PATH <- here("benchmarks", "hmc", paste0("registry-cpu-single-", length(parallel::mcaffinity())))
 
 if (dir.exists(REG_PATH)) {
-  # Ask whether to delete the registry
-  answer <- readline("Registry already exists. Delete it to run the benchmark again? (y/n)")
-  if (answer == "y") {
-    unlink(REG_PATH, recursive = TRUE)
-  } else {
-    stop("Registry already exists. Delete it to run the benchmark again.")
+  if (interactive()) {
+    # Ask whether to delete the registry
+    answer <- readline("Registry already exists. Delete it to run the benchmark again? (y/n)")
+    if (answer != "y") {
+      stop("Registry already exists. Delete it to run the benchmark again.")
+    }
   }
+  # Interactive "y" or non-interactive (e.g. batch): delete and re-run.
+  unlink(REG_PATH, recursive = TRUE)
 }
 
 setup(
