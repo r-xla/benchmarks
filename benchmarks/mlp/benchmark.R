@@ -58,6 +58,21 @@ setup <- function(reg_path, python_path, work_dir, seed = 42L) {
     callr::r(f, args = args)
   })
 
+  addAlgorithm("jax", fun = function(instance, job, ...) {
+    f <- function(..., python_path) {
+      library(reticulate)
+      x <- try({
+        reticulate::use_python(python_path, required = TRUE)
+        reticulate::source_python(here::here("benchmarks", "mlp", "time_jax.py"))
+        print(reticulate::py_config())
+        time_jax(...)
+      }, silent = TRUE)
+      print(x)
+    }
+    args <- c(instance, list(seed = job$seed, python_path = python_path))
+    callr::r(f, args = args)
+  })
+
   addAlgorithm("rtorch", fun = function(instance, job, ...) {
     callr::r(time_rtorch, args = c(instance, list(seed = job$seed)))
   })

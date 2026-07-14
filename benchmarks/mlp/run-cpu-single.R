@@ -36,14 +36,16 @@ problem_design <- expand.grid(
   list(
     epochs = 10L,
     # batch_size must divide 1024 (n)
-    batch_size = c(32L, 64L, 128L, 256L, 512L, 1024L),
+    #batch_size = c(32L, 64L, 128L, 256L, 512L, 1024L),
+    batch_size = c(32L, 1024L),
     n = 1024L,
     p = 10L,
     device = "cpu",
     #n_layers = 0L,
     #latent = 10L
     n_layers = c(0L, 4L, 8L, 12L, 16L),
-    latent = c(10L, 20L, 40L, 80L, 160L, 320L)
+    #latent = c(10L, 20L, 40L, 80L, 160L, 320L)
+    latent = c(10L, 320L)
   ),
   stringsAsFactors = FALSE
 )
@@ -55,6 +57,7 @@ addExperiments(
   algo.designs = list(
     rtorch = data.frame(),
     pytorch = data.frame(),
+    jax = data.frame(),
     anvl = data.frame(compile_loop = c(TRUE, FALSE))
   ),
   repls = 1L
